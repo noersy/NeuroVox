@@ -18,6 +18,7 @@ export class FloatingButton {
     public audioManager: AudioRecordingManager | null = null;
     public isRecording: boolean = false;
     public isProcessing: boolean = false;
+    private visibilityCheckInterval: number | null = null;
 
     public constructor(
         public plugin: NeuroVoxPlugin,
@@ -298,8 +299,12 @@ export class FloatingButton {
 
             // Add mutation observer to detect if button gets removed
             this.setupMutationObserver(viewContent);
+
+            // Start visibility checker for extra safety
+            this.startVisibilityChecker(viewContent);
         } else {
             this.hide();
+            this.stopVisibilityChecker();
         }
     }
 
@@ -333,6 +338,47 @@ export class FloatingButton {
     }
 
     /**
+     * Start interval checker to ensure button stays visible
+     */
+    private startVisibilityChecker(container: HTMLElement): void {
+        this.stopVisibilityChecker();
+
+        this.visibilityCheckInterval = window.setInterval(() => {
+            if (!this.plugin.settings.showFloatingButton) {
+                this.stopVisibilityChecker();
+                return;
+            }
+
+            // Check if container is still connected
+            if (this.containerEl && !this.containerEl.isConnected) {
+                // Re-attach if disconnected
+                if (container.isConnected) {
+                    container.appendChild(this.containerEl);
+                    this.show();
+                }
+            }
+
+            // Check if button visibility is correct
+            if (this.containerEl && this.containerEl.isConnected) {
+                const computedStyle = window.getComputedStyle(this.containerEl);
+                if (computedStyle.display === 'none' || computedStyle.opacity === '0') {
+                    this.show();
+                }
+            }
+        }, 1000); // Check every second
+    }
+
+    /**
+     * Stop visibility checker interval
+     */
+    private stopVisibilityChecker(): void {
+        if (this.visibilityCheckInterval !== null) {
+            window.clearInterval(this.visibilityCheckInterval);
+            this.visibilityCheckInterval = null;
+        }
+    }
+
+    /**
      * Handles updating the active container when switching notes
      */
     public updateActiveContainer(newContainer: HTMLElement): void {
@@ -349,12 +395,15 @@ export class FloatingButton {
 
         // Always initialize position manager
         this.initializePositionManager();
-        
+
         // Only show the button if the setting is enabled
         if (this.plugin.settings.showFloatingButton) {
             this.show();
+            this.setupMutationObserver(newContainer);
+            this.startVisibilityChecker(newContainer);
         } else {
             this.hide();
+            this.stopVisibilityChecker();
         }
     }
 
@@ -397,6 +446,9 @@ export class FloatingButton {
             clearTimeout(this.resizeTimeout);
             this.resizeTimeout = null;
         }
+
+        // Stop visibility checker
+        this.stopVisibilityChecker();
 
         // Clean up mutation observer
         if (this.mutationObserver) {
