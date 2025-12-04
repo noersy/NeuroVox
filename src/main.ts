@@ -98,11 +98,12 @@ class AudioFileSuggestModal extends FuzzySuggestModal<TFile> {
 export default class NeuroVoxPlugin extends Plugin {
     settings: NeuroVoxSettings;
     public aiAdapters: Map<AIProvider, AIAdapter>;
-    
+
     private buttonMap: Map<string, FloatingButton> = new Map();
     toolbarButton: ToolbarButton | null = null;
     public activeLeaf: WorkspaceLeaf | null = null;
     settingTab: NeuroVoxSettingTab | null = null;
+    private statusBarItem: HTMLElement | null = null;
 
     // Custom events emitter
     public events = new Events();
@@ -135,6 +136,9 @@ export default class NeuroVoxPlugin extends Plugin {
             this.recordingProcessor = RecordingProcessor.getInstance(this);
             this.initializeUI();
 
+            // Initialize status bar
+            this.initializeStatusBar();
+
             // Register event listener for floating button setting changes and trigger initial state
             this.registerFloatingButtonEvents();
 
@@ -143,6 +147,54 @@ export default class NeuroVoxPlugin extends Plugin {
         } catch (error) {
             new Notice("Failed to initialize NeuroVox plugin");
         }
+    }
+
+    /**
+     * Initialize status bar item in bottom right
+     */
+    private initializeStatusBar(): void {
+        // Create status bar item
+        this.statusBarItem = this.addStatusBarItem();
+        this.statusBarItem.addClass('neurovox-status-bar');
+        this.updateStatusBar();
+
+        // Listen for transcription status changes
+        window.addEventListener('neurovox:transcription-status-changed', () => {
+            this.updateStatusBar();
+        });
+
+        // Listen for backend connection changes
+        this.events.on('backend-connection-changed', () => {
+            this.updateStatusBar();
+        });
+    }
+
+    /**
+     * Update status bar text and icon
+     */
+    public updateStatusBar(): void {
+        if (!this.statusBarItem) return;
+
+        let statusText = '';
+        let statusClass = '';
+
+        if (!this.settings.backendConnectionStatus) {
+            statusText = '🔴 Backend Offline';
+            statusClass = 'disconnected';
+        } else if (this.settings.isTranscribing) {
+            statusText = '⏳ Transcribing...';
+            statusClass = 'transcribing';
+        } else {
+            statusText = '🟢 Ready';
+            statusClass = 'ready';
+        }
+
+        this.statusBarItem.setText(statusText);
+        this.statusBarItem.removeClass('disconnected', 'transcribing', 'ready');
+        this.statusBarItem.addClass(statusClass);
+
+        // Add tooltip
+        this.statusBarItem.setAttribute('aria-label', 'NeuroVox Status: ' + statusText);
     }
     
     /**

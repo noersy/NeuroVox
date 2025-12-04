@@ -251,13 +251,12 @@ export class FloatingButton {
     public attachToActiveLeaf(): void {
         const activeLeaf = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
         if (!activeLeaf) {
-            this.hide();
+            // Don't hide when no active leaf - keep button visible
             return;
         }
 
         const viewContent = activeLeaf.containerEl.querySelector('.view-content');
         if (!(viewContent instanceof HTMLElement)) {
-            this.hide();
             return;
         }
 
@@ -270,12 +269,17 @@ export class FloatingButton {
         });
 
         // Create and attach our container if needed
-        if (!this.containerEl) {
+        if (!this.containerEl || !this.buttonEl) {
             this.createContainer();
             this.createButton();
         }
 
-        // Always attach to the current view content
+        // Ensure container is in the DOM
+        if (this.containerEl && !this.containerEl.isConnected) {
+            viewContent.appendChild(this.containerEl);
+        }
+
+        // Always attach to the current view content if not already attached
         if (this.containerEl && this.containerEl.parentNode !== viewContent) {
             // Remove from old parent if needed
             if (this.containerEl.parentNode) {
@@ -288,12 +292,44 @@ export class FloatingButton {
         this.activeLeafContainer = viewContent;
         this.initializePositionManager();
 
-        // Only show the button if the setting is enabled
+        // Always show the button if setting is enabled
         if (this.plugin.settings.showFloatingButton) {
             this.show();
+
+            // Add mutation observer to detect if button gets removed
+            this.setupMutationObserver(viewContent);
         } else {
             this.hide();
         }
+    }
+
+    private mutationObserver: MutationObserver | null = null;
+
+    private setupMutationObserver(container: HTMLElement): void {
+        // Disconnect existing observer
+        if (this.mutationObserver) {
+            this.mutationObserver.disconnect();
+        }
+
+        // Create new observer to watch for button removal
+        this.mutationObserver = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList' && this.containerEl) {
+                    // Check if our container was removed
+                    if (!this.containerEl.isConnected && this.plugin.settings.showFloatingButton) {
+                        // Re-attach the button
+                        container.appendChild(this.containerEl);
+                        this.show();
+                    }
+                }
+            }
+        });
+
+        // Observe the container for child changes
+        this.mutationObserver.observe(container, {
+            childList: true,
+            subtree: false
+        });
     }
 
     /**
@@ -361,28 +397,34 @@ export class FloatingButton {
             clearTimeout(this.resizeTimeout);
             this.resizeTimeout = null;
         }
-        
+
+        // Clean up mutation observer
+        if (this.mutationObserver) {
+            this.mutationObserver.disconnect();
+            this.mutationObserver = null;
+        }
+
         // Clean up position manager
         if (this.positionManager) {
             this.positionManager.cleanup();
             this.positionManager = null;
         }
-        
+
         // Clean up resize observer
         if (this.resizeObserver) {
             this.resizeObserver.disconnect();
             this.resizeObserver = null;
         }
-        
+
         // Clean up audio resources
         this.cleanup();
-        
+
         // Remove event listeners and element
         if (this.buttonEl) {
             this.buttonEl.remove();
             this.buttonEl = null;
         }
-        
+
         // Remove container element
         if (this.containerEl) {
             this.containerEl.remove();
