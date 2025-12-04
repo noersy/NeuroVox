@@ -57,6 +57,13 @@ export class LocalWhisperAdapter extends AIAdapter {
         parts.push(new Uint8Array(audioArrayBuffer));
         parts.push(encoder.encode('\r\n'));
 
+        // Language parameter part
+        const language = this.settings.transcriptionLanguage || 'auto';
+        parts.push(encoder.encode(`--${boundary}\r\n`));
+        parts.push(encoder.encode('Content-Disposition: form-data; name="language"\r\n\r\n'));
+        parts.push(encoder.encode(language));
+        parts.push(encoder.encode('\r\n'));
+
         // End boundary
         parts.push(encoder.encode(`--${boundary}--\r\n`));
 

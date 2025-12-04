@@ -86,21 +86,31 @@ async function decodeAudio(audioBuffer: Buffer): Promise<Float32Array> {
     }
 }
 
-export async function transcribe(audioBuffer: Buffer): Promise<string> {
+export async function transcribe(audioBuffer: Buffer, language?: string): Promise<string> {
     if (!whisperPipeline) {
         throw new Error('Whisper model not initialized');
     }
 
     try {
-        logger.info(`Transcribing audio (${audioBuffer.length} bytes)...`);
+        logger.info(`Transcribing audio (${audioBuffer.length} bytes, language: ${language || 'auto'})...`);
         const startTime = Date.now();
 
         // Decode audio to Float32Array
         const audioData = await decodeAudio(audioBuffer);
         logger.info(`Audio decoded: ${audioData.length} samples`);
 
-        // Transcribe the decoded audio
-        const result = await whisperPipeline(audioData);
+        // Prepare transcription options
+        const options: any = {
+            return_timestamps: false
+        };
+
+        // Add language if specified and not 'auto'
+        if (language && language !== 'auto') {
+            options.language = language;
+        }
+
+        // Transcribe the decoded audio with language option
+        const result = await whisperPipeline(audioData, options);
 
         const duration = (Date.now() - startTime) / 1000;
         logger.info(`Transcription completed in ${duration.toFixed(2)}s`);

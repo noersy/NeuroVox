@@ -12,6 +12,7 @@ export type NeuroVoxSettings = {
     // Backend Configuration
     backendUrl: string;
     backendConnectionStatus: boolean;
+    isTranscribing: boolean;
 
     // Recording
     audioQuality: AudioQuality;
@@ -23,6 +24,7 @@ export type NeuroVoxSettings = {
     micButtonColor: string;
     transcriptionModel: string;
     transcriptionProvider: AIProvider;
+    transcriptionLanguage: string;
     transcriptionCalloutFormat: string;
     showTimer: boolean;
     autoStopEnabled: boolean;
@@ -40,6 +42,7 @@ export const DEFAULT_SETTINGS: NeuroVoxSettings = {
     // Backend Configuration
     backendUrl: 'http://localhost:3847',
     backendConnectionStatus: false,
+    isTranscribing: false,
 
     // Recording
     audioQuality: AudioQuality.Medium,
@@ -51,6 +54,7 @@ export const DEFAULT_SETTINGS: NeuroVoxSettings = {
     micButtonColor: '#4B4B4B',
     transcriptionModel: 'whisper-small',
     transcriptionProvider: AIProvider.LocalWhisper,
+    transcriptionLanguage: 'auto',
     transcriptionCalloutFormat: '>[!info]- Transcription\n>![[{audioPath}]]\n>{transcription}',
     showTimer: true,
     autoStopEnabled: false,

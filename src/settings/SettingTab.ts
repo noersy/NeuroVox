@@ -9,6 +9,7 @@ import NeuroVoxPlugin from '../main';
 export class NeuroVoxSettingTab extends PluginSettingTab {
     plugin: NeuroVoxPlugin;
     private recordingAccordion: RecordingAccordion | null = null;
+    public backendAccordion: BackendConfigAccordion | null = null;
 
     constructor(app: App, plugin: NeuroVoxPlugin) {
         super(app, plugin);
@@ -31,18 +32,18 @@ export class NeuroVoxSettingTab extends PluginSettingTab {
             this.plugin
         );
 
-        // Create BackendConfig accordion
-        const backendConfigAccordion = new BackendConfigAccordion(
+        // Create BackendConfig accordion and store reference
+        this.backendAccordion = new BackendConfigAccordion(
             backendConfigContainer,
             this.plugin.settings,
             this.plugin
         );
 
         // Link the accordions
-        backendConfigAccordion.setRecordingAccordion(this.recordingAccordion);
+        this.backendAccordion.setRecordingAccordion(this.recordingAccordion);
 
         // Render all accordions in order
-        backendConfigAccordion.render();
+        this.backendAccordion.render();
         this.recordingAccordion.render();
     }
 

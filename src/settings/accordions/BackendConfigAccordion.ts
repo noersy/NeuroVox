@@ -11,6 +11,7 @@ import { LocalWhisperAdapter } from "../../adapters/LocalWhisperAdapter";
 export class BackendConfigAccordion extends BaseAccordion {
     private recordingAccordion!: RecordingAccordion;
     private connectionStatusSetting!: Setting;
+    private transcriptionStatusSetting!: Setting;
 
     constructor(
         containerEl: HTMLElement,
@@ -19,8 +20,8 @@ export class BackendConfigAccordion extends BaseAccordion {
     ) {
         super(
             containerEl,
-            "🖥️ Local Backend",
-            "Configure connection to local Whisper backend server."
+            "🖥️ Local Backend Configuration",
+            "Configure connection to local Whisper backend server and transcription settings."
         );
     }
 
@@ -29,6 +30,10 @@ export class BackendConfigAccordion extends BaseAccordion {
     }
 
     render(): void {
+        // Add section header styling
+        const headerDiv = this.contentEl.createEl("div", { cls: "backend-config-header" });
+        headerDiv.createEl("h4", { text: "Server Connection", cls: "setting-item-heading" });
+
         // Backend URL Setting
         const urlSetting = new Setting(this.contentEl)
             .setName("Backend URL")
@@ -92,9 +97,60 @@ export class BackendConfigAccordion extends BaseAccordion {
             .setName("Connection Status")
             .setDesc(this.getConnectionStatusDesc());
 
+        // Transcription Status Display
+        this.transcriptionStatusSetting = new Setting(this.contentEl)
+            .setName("Transcription Status")
+            .setDesc(this.getTranscriptionStatusDesc());
+
+        // Add divider
+        this.contentEl.createEl("div", { cls: "setting-item-divider" });
+
+        // Transcription Settings Section
+        const transHeaderDiv = this.contentEl.createEl("div", { cls: "backend-config-header" });
+        transHeaderDiv.createEl("h4", { text: "Transcription Settings", cls: "setting-item-heading" });
+
+        // Language Selection
+        new Setting(this.contentEl)
+            .setName("Language")
+            .setDesc("Select the language for transcription. 'Auto' will detect the language automatically.")
+            .addDropdown(dropdown => {
+                dropdown
+                    .addOption("auto", "🌐 Auto Detect")
+                    .addOption("en", "🇺🇸 English")
+                    .addOption("id", "🇮🇩 Indonesian / Bahasa Indonesia")
+                    .addOption("es", "🇪🇸 Spanish / Español")
+                    .addOption("fr", "🇫🇷 French / Français")
+                    .addOption("de", "🇩🇪 German / Deutsch")
+                    .addOption("ja", "🇯🇵 Japanese / 日本語")
+                    .addOption("zh", "🇨🇳 Chinese / 中文")
+                    .addOption("ko", "🇰🇷 Korean / 한국어")
+                    .addOption("pt", "🇧🇷 Portuguese / Português")
+                    .addOption("ru", "🇷🇺 Russian / Русский")
+                    .addOption("ar", "🇸🇦 Arabic / العربية")
+                    .addOption("hi", "🇮🇳 Hindi / हिन्दी")
+                    .addOption("it", "🇮🇹 Italian / Italiano")
+                    .addOption("nl", "🇳🇱 Dutch / Nederlands")
+                    .addOption("pl", "🇵🇱 Polish / Polski")
+                    .addOption("tr", "🇹🇷 Turkish / Türkçe")
+                    .addOption("vi", "🇻🇳 Vietnamese / Tiếng Việt")
+                    .addOption("th", "🇹🇭 Thai / ไทย")
+                    .setValue(this.settings.transcriptionLanguage)
+                    .onChange(async (value: string) => {
+                        this.settings.transcriptionLanguage = value;
+                        await this.plugin.saveSettings();
+                    });
+            });
+
         // Auto-check connection on render
         this.checkConnectionStatus();
+
+        // Listen for transcription status changes
+        window.addEventListener('neurovox:transcription-status-changed', this.handleTranscriptionStatusChange.bind(this));
     }
+
+    private handleTranscriptionStatusChange = (): void => {
+        this.updateTranscriptionStatus();
+    };
 
     private async checkConnectionStatus(): Promise<void> {
         const adapter = this.plugin.aiAdapters.get(AIProvider.LocalWhisper);
@@ -112,6 +168,12 @@ export class BackendConfigAccordion extends BaseAccordion {
         }
     }
 
+    public updateTranscriptionStatus(): void {
+        if (this.transcriptionStatusSetting) {
+            this.transcriptionStatusSetting.setDesc(this.getTranscriptionStatusDesc());
+        }
+    }
+
     private getConnectionStatusDesc(): string {
         if (this.settings.backendConnectionStatus) {
             return "🟢 Connected - Backend is running and ready";
@@ -120,6 +182,14 @@ export class BackendConfigAccordion extends BaseAccordion {
                    "1. Navigate to: <vault>/.obsidian/plugins/neurovox/backend\n" +
                    "2. Run: npm install (first time only)\n" +
                    "3. Run: npm start";
+        }
+    }
+
+    private getTranscriptionStatusDesc(): string {
+        if (this.settings.isTranscribing) {
+            return "⏳ Processing - Transcribing audio... Please wait.";
+        } else {
+            return "✅ Ready - Waiting for audio to transcribe";
         }
     }
 }
