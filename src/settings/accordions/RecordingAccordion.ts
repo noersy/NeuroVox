@@ -187,81 +187,15 @@ export class RecordingAccordion extends BaseAccordion {
 
         this.modelSetting = new Setting(this.contentEl)
             .setName("Transcription model")
-            .setDesc("Select the AI model for transcription")
+            .setDesc("Using Whisper Small (Local) - ~244MB model running on your machine")
             .addDropdown(dropdown => {
                 this.modelDropdown = dropdown;
-                this.setupModelDropdown(dropdown);
-                
-                dropdown.onChange(async (value) => {
-                    this.settings.transcriptionModel = value;
-                    const provider = this.getProviderFromModel(value);
-                    if (provider) {
-                        this.settings.transcriptionProvider = provider;
-                        await this.plugin.saveSettings();
-                    }
-                });
+                dropdown.addOption('whisper-small', 'Whisper Small (Local)');
+                dropdown.setValue('whisper-small');
+                dropdown.setDisabled(true);
+
+                this.settings.transcriptionModel = 'whisper-small';
+                this.settings.transcriptionProvider = AIProvider.LocalWhisper;
             });
-    }    private async setupModelDropdown(dropdown: DropdownComponent): Promise<void> {
-        dropdown.selectEl.empty();
-        let hasValidProvider = false;
-
-        for (const provider of [AIProvider.OpenAI, AIProvider.Groq, AIProvider.Deepgram]) {
-            const apiKey = this.settings[`${provider}ApiKey` as keyof NeuroVoxSettings];
-            if (apiKey) {
-                const adapter = this.getAdapter(provider);
-                if (adapter) {
-                    const models = adapter.getAvailableModels('transcription');
-                    if (models.length > 0) {
-                        hasValidProvider = true;
-                        const group = document.createElement("optgroup");
-                        group.label = `${provider.toUpperCase()} Models`;
-                        
-                        models.forEach(model => {
-                            const option = document.createElement("option");
-                            option.value = model.id;
-                            option.text = `${model.name}`;
-                            group.appendChild(option);
-                        });
-                        
-                        dropdown.selectEl.appendChild(group);
-                    }
-                }
-            }
-        }
-
-        if (!hasValidProvider) {
-            dropdown.addOption("none", "No API keys configured");
-            dropdown.setDisabled(true);
-            this.settings.transcriptionModel = '';
-        } else {
-            dropdown.setDisabled(false);
-            
-            if (!this.settings.transcriptionModel || !this.getProviderFromModel(this.settings.transcriptionModel)) {
-                const firstOption = dropdown.selectEl.querySelector('option:not([value="none"])') as HTMLOptionElement;
-                if (firstOption) {
-                    const modelId = firstOption.value;
-                    const provider = this.getProviderFromModel(modelId);
-                    if (provider) {
-                        this.settings.transcriptionProvider = provider;
-                        this.settings.transcriptionModel = modelId;
-                        dropdown.setValue(modelId);
-                        await this.plugin.saveSettings();
-                    }
-                }
-            } else {
-                dropdown.setValue(this.settings.transcriptionModel);
-            }
-        }
-
-        await this.plugin.saveSettings();
-    }
-
-    public getProviderFromModel(modelId: string): AIProvider | null {
-        for (const [provider, models] of Object.entries(AIModels)) {
-            if (models.some(model => model.id === modelId)) {
-                return provider as AIProvider;
-            }
-        }
-        return null;
     }
 }

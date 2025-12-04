@@ -2,34 +2,26 @@ import { EditorPosition, Notice, TFile } from 'obsidian';
 import NeuroVoxPlugin from '../../main';
 
 /**
- * Content to be inserted into a document
- */
-export interface InsertContent {
-    transcription: string;
-    postProcessing?: string;
-    audioFilePath?: string;
-}
-
-/**
- * Handles formatting and insertion of content into notes
- * Used by RecordingProcessor to insert transcriptions and post-processing
+ * Handles formatting and insertion of transcription content into notes
  */
 export class DocumentInserter {
     constructor(private plugin: NeuroVoxPlugin) {}
 
     /**
-     * Inserts formatted content at the specified position in a file
-     * @param content The content to insert
+     * Inserts formatted transcription content at the specified position in a file
+     * @param transcription The transcribed text
+     * @param audioFilePath Optional path to the audio file
      * @param file The target file
      * @param position The cursor position for insertion
      */
     public async insertContent(
-        content: InsertContent,
+        transcription: string,
+        audioFilePath: string | undefined,
         file: TFile,
         position: EditorPosition
     ): Promise<void> {
         try {
-            const formattedContent = this.formatContent(content);
+            const formattedContent = this.formatContent(transcription, audioFilePath);
             await this.insertAtPosition(formattedContent, file, position);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -61,40 +53,28 @@ export class DocumentInserter {
     }
 
     /**
-     * Formats the content according to configured callout formats
+     * Formats the transcription content according to configured callout format
      */
-    private formatContent(content: InsertContent): string {
+    private formatContent(transcription: string, audioFilePath?: string): string {
         let format = this.plugin.settings.transcriptionCalloutFormat;
-        
+
         // If there's no audio file path, remove the audio file link from the format
-        if (!content.audioFilePath) {
+        if (!audioFilePath) {
             format = format
                 .replace(/!?\[\[{audioPath}\]\]\n?/, '') // Remove audio file link and optional newline
                 .replace('[[{audioPath}]]', '') // Also try without newline
                 .replace('{audioPath}', ''); // Fallback for any other format
         }
-        
+
         // Format transcription content
         let formattedContent = format
-            .replace('{audioPath}', content.audioFilePath || '')
-            .replace('{transcription}', content.transcription);
+            .replace('{audioPath}', audioFilePath || '')
+            .replace('{transcription}', transcription);
 
         // Only use callout formatting if the format includes callout syntax
-        const useTranscriptionCallout = this.isCalloutFormat(format);
-        formattedContent = this.formatLines(formattedContent, useTranscriptionCallout);
-        
-        // Add post-processing if enabled
-        if (this.plugin.settings.generatePostProcessing && content.postProcessing) {
-            const postFormat = this.plugin.settings.postProcessingCalloutFormat;
-            const usePostCallout = this.isCalloutFormat(postFormat);
-            
-            let postContent = postFormat
-                .replace('{postProcessing}', content.postProcessing);
-            
-            postContent = this.formatLines(postContent, usePostCallout);
-            formattedContent += '\n---\n' + postContent + '\n\n';
-        }
-        
+        const useCallout = this.isCalloutFormat(format);
+        formattedContent = this.formatLines(formattedContent, useCallout);
+
         return formattedContent + '\n';
     }
 

@@ -1,0 +1,29 @@
+{
+  "name": "neurovox-backend",
+  "version": "1.0.0",
+  "description": "Local Whisper backend server for NeuroVox plugin",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node src/server.ts"
+  },
+  "keywords": ["whisper", "transcription", "speech-to-text"],
+  "author": "Synaptic Labs",
+  "license": "MIT",
+  "dependencies": {
+    "@huggingface/transformers": "^3.1.0",
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "cors": "^2.8.5",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.11",
+    "@types/cors": "^2.8.17",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2"
+  }
+}

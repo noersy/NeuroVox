@@ -1,7 +1,7 @@
 {
 	"name": "neurovox",
-	"version": "1.0.4",
-	"description": "Enhances your note-taking with voice transcription and AI capabilities",
+	"version": "2.0.0",
+	"description": "Enhances your note-taking with local voice transcription using Whisper",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
@@ -23,13 +23,8 @@
 		"typescript": "4.7.4"
 	},
 	"dependencies": {
-		"@deepgram/sdk": "^4.2.0",
 		"@ffmpeg/ffmpeg": "^0.12.6",
 		"@ffmpeg/util": "^0.12.1",
-		"axios": "^1.7.7",
-		"commander": "^12.1.0",
-		"dotenv": "^16.4.5",
-		"openai": "^4.79.1",
 		"recordrtc": "^5.6.2"
 	}
 }

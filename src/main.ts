@@ -17,9 +17,7 @@ import { NeuroVoxSettingTab } from './settings/SettingTab';
 import { FloatingButton } from './ui/FloatingButton';
 import { ToolbarButton } from './ui/ToolbarButton';
 import { TimerModal } from './modals/TimerModal';
-import { OpenAIAdapter } from './adapters/OpenAIAdapter';
-import { GroqAdapter } from './adapters/GroqAdapter';
-import { DeepgramAdapter } from './adapters/DeepgramAdapter';
+import { LocalWhisperAdapter } from './adapters/LocalWhisperAdapter';
 import { AIProvider, AIAdapter } from './adapters/AIAdapter';
 import { PluginData } from './types';
 import { RecordingProcessor } from './utils/RecordingProcessor';
@@ -115,20 +113,31 @@ export default class NeuroVoxPlugin extends Plugin {
         try {
             // First load settings
             await this.loadSettings();
-            
+
             // Then initialize everything that depends on settings
             this.initializeAIAdapters();
-            await this.validateApiKeys();
+
+            // Check backend health
+            const adapter = this.aiAdapters.get(AIProvider.LocalWhisper);
+            if (adapter && adapter instanceof LocalWhisperAdapter) {
+                const isHealthy = await adapter.checkBackendHealth();
+                this.settings.backendConnectionStatus = isHealthy;
+                await this.saveSettings();
+                if (!isHealthy) {
+                    new Notice('⚠️ Local Whisper backend not responding. Start the backend server to use transcription features.');
+                }
+            }
+
             this.registerSettingsTab();
             this.registerCommands();
             this.registerEvents();
-            
+
             this.recordingProcessor = RecordingProcessor.getInstance(this);
             this.initializeUI();
-            
+
             // Register event listener for floating button setting changes and trigger initial state
             this.registerFloatingButtonEvents();
-            
+
             // Trigger initial state
             this.events.trigger('floating-button-setting-changed', this.settings.showFloatingButton);
         } catch (error) {
@@ -197,52 +206,18 @@ export default class NeuroVoxPlugin extends Plugin {
         } catch (error) {
             new Notice("Failed to save NeuroVox settings");
         }
-    }    private async validateApiKeys(): Promise<void> {
+    }    public initializeAIAdapters(): void {
         try {
-            // Set API keys from settings
-            const openaiAdapter = this.aiAdapters.get(AIProvider.OpenAI);
-            const groqAdapter = this.aiAdapters.get(AIProvider.Groq);
-            const deepgramAdapter = this.aiAdapters.get(AIProvider.Deepgram);
+            const adapter = new LocalWhisperAdapter(
+                this.settings,
+                this.settings.backendUrl
+            );
 
-            if (openaiAdapter) {
-                openaiAdapter.setApiKey(this.settings.openaiApiKey);
-                await openaiAdapter.validateApiKey();
-            }
-
-            if (groqAdapter) {
-                groqAdapter.setApiKey(this.settings.groqApiKey);
-                await groqAdapter.validateApiKey();
-            }
-
-            if (deepgramAdapter) {
-                deepgramAdapter.setApiKey(this.settings.deepgramApiKey);
-                await deepgramAdapter.validateApiKey();
-            }
-
-            // Only show notice if validation fails
-            if (openaiAdapter && !openaiAdapter.isReady() && this.settings.openaiApiKey) {
-                new Notice('❌ OpenAI API key validation failed');
-            }
-            if (groqAdapter && !groqAdapter.isReady() && this.settings.groqApiKey) {
-                new Notice('❌ Groq API key validation failed');
-            }
-            if (deepgramAdapter && !deepgramAdapter.isReady() && this.settings.deepgramApiKey) {
-                new Notice('❌ Deepgram API key validation failed');
-            }
+            this.aiAdapters = new Map<AIProvider, AIAdapter>([
+                [AIProvider.LocalWhisper, adapter]
+            ]);
         } catch (error) {
-            // Silent fail for API key validation
-        }
-    }public initializeAIAdapters(): void {
-        try {
-            const adapters: Array<[AIProvider, AIAdapter]> = [
-                [AIProvider.OpenAI, new OpenAIAdapter(this.settings)],
-                [AIProvider.Groq, new GroqAdapter(this.settings)],
-                [AIProvider.Deepgram, new DeepgramAdapter(this.settings)]
-            ];
-            
-            this.aiAdapters = new Map<AIProvider, AIAdapter>(adapters);
-        } catch (error) {
-            throw new Error("Failed to initialize AI adapters");
+            throw new Error("Failed to initialize Local Whisper adapter");
         }
     }
 
