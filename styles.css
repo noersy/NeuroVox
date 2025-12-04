@@ -305,13 +305,14 @@
  * FLOATING BUTTON
  ************************************/
 .neurovox-button-container {
-    position: absolute;
+    position: absolute !important;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: var(--layer-notice);
+    z-index: 9998 !important;
+    display: block !important;
 }
 
 .neurovox-button.floating {
@@ -660,4 +661,39 @@
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }
+}
+
+/************************************
+ * STATUS BAR
+ ************************************/
+.neurovox-status-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-s);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all var(--neurovox-transition-quick) ease;
+    cursor: default;
+}
+
+.neurovox-status-bar.disconnected {
+    color: var(--text-error);
+    background-color: var(--background-modifier-error);
+}
+
+.neurovox-status-bar.transcribing {
+    color: var(--text-warning);
+    background-color: var(--background-modifier-warning);
+    animation: pulse 2s infinite;
+}
+
+.neurovox-status-bar.ready {
+    color: var(--text-success);
+    background-color: var(--background-modifier-success);
+}
+
+.neurovox-status-bar:hover {
+    opacity: 0.8;
 }
