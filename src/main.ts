@@ -305,10 +305,6 @@ export default class NeuroVoxPlugin extends Plugin {
             if (!adapter) {
                 throw new Error(`Transcription provider ${this.settings.transcriptionProvider} not found`);
             }
-            
-            if (!adapter.getApiKey()) {
-                throw new Error(`API key not set for ${this.settings.transcriptionProvider}`);
-            }
 
             const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
             const sanitizedName = file.basename.replace(/[\\/:*?"<>|]/g, '');
@@ -498,10 +494,6 @@ export default class NeuroVoxPlugin extends Plugin {
                         const adapter = this.aiAdapters.get(this.settings.transcriptionProvider);
                         if (!adapter) {
                             throw new Error(`Transcription provider ${this.settings.transcriptionProvider} not found`);
-                        }
-
-                        if (!adapter.getApiKey()) {
-                            throw new Error(`API key not set for ${this.settings.transcriptionProvider}`);
                         }
 
                         await this.recordingProcessor.processRecording(

@@ -84,14 +84,14 @@ export class StreamingTranscriptionService {
         try {
             // Convert blob to ArrayBuffer
             const arrayBuffer = await chunk.arrayBuffer();
-            
+
             // Transcribe the chunk
-            const result = await this.transcriptionService.transcribeContent(arrayBuffer);
-            
+            const transcript = await this.transcriptionService.transcribeContent(arrayBuffer);
+
             // Create transcription chunk
             const transcriptionChunk: TranscriptionChunk = {
                 metadata,
-                transcript: result.transcription,
+                transcript: transcript,
                 processed: true
             };
 

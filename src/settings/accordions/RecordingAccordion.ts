@@ -111,15 +111,10 @@ export class RecordingAccordion extends BaseAccordion {
     }
 
     public async refresh(): Promise<void> {
-        try {
-            if (!this.modelDropdown) {
-                return;
-            }
-            
-            await this.setupModelDropdown(this.modelDropdown);
-        } catch (error) {
-            throw error;
-        }
+
+            // Recreate the model setting
+            this.createTranscriptionModelSetting();
+      
     }
 
     public createToolbarButtonSetting(): void {

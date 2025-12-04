@@ -92,18 +92,9 @@ export class AudioProcessor {
      * Checks if the provider can handle the given file size
      */
     private canProviderHandleFile(provider: AIProvider, fileSize: number): boolean {
-        const MAX_SIZE_25MB = 25 * 1024 * 1024;
-        const MAX_SIZE_2GB = 2 * 1024 * 1024 * 1024;
-        
-        switch (provider) {
-            case AIProvider.Deepgram:
-                return fileSize <= MAX_SIZE_2GB; // 2GB limit
-            case AIProvider.OpenAI:
-            case AIProvider.Groq:
-                return fileSize <= MAX_SIZE_25MB; // 25MB limit
-            default:
-                return fileSize <= MAX_SIZE_25MB; // Conservative default
-        }
+        // Local Whisper backend can handle up to 100MB
+        const MAX_SIZE_100MB = 100 * 1024 * 1024;
+        return fileSize <= MAX_SIZE_100MB;
     }
 
     /**
@@ -111,19 +102,6 @@ export class AudioProcessor {
      */
     private getLargeFileErrorMessage(provider: AIProvider, fileSizeMB: number): string {
         const fileSize = fileSizeMB.toFixed(1);
-        
-        switch (provider) {
-            case AIProvider.OpenAI:
-                return `File too large (${fileSize}MB) for OpenAI. Switch to Deepgram for large files.`;
-                       
-            case AIProvider.Groq:
-                return `File too large (${fileSize}MB) for Groq. Switch to Deepgram for large files.`;
-                       
-            case AIProvider.Deepgram:
-                return `File too large (${fileSize}MB). Split the audio file into smaller segments.`;
-                       
-            default:
-                return `File too large (${fileSize}MB). Switch to Deepgram for large files.`;
-        }
+        return `File too large (${fileSize}MB). The local Whisper backend supports files up to 100MB. Please split the audio into smaller segments.`;
     }
 }
