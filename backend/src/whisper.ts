@@ -1,9 +1,14 @@
-import { pipeline, AutomaticSpeechRecognitionPipeline, read_audio } from '@huggingface/transformers';
-import { writeFileSync, unlinkSync } from 'fs';
+import { pipeline, AutomaticSpeechRecognitionPipeline } from '@huggingface/transformers';
+import { writeFileSync, unlinkSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import ffmpeg from 'fluent-ffmpeg';
+import ffmpegPath from '@ffmpeg-installer/ffmpeg';
 import { logger } from './utils/logger';
 import { config } from './config';
+
+// Configure ffmpeg path
+ffmpeg.setFfmpegPath(ffmpegPath.path);
 
 let whisperPipeline: AutomaticSpeechRecognitionPipeline | null = null;
 
@@ -27,23 +32,72 @@ export async function initializeWhisper(): Promise<void> {
     }
 }
 
+/**
+ * Decodes audio file to Float32Array using ffmpeg
+ */
+async function decodeAudio(audioBuffer: Buffer): Promise<Float32Array> {
+    const inputPath = join(tmpdir(), `whisper-input-${Date.now()}.webm`);
+    const outputPath = join(tmpdir(), `whisper-output-${Date.now()}.wav`);
+
+    try {
+        // Save input audio
+        writeFileSync(inputPath, audioBuffer);
+
+        // Convert to WAV PCM (16-bit, mono, 16kHz) using ffmpeg
+        await new Promise<void>((resolve, reject) => {
+            ffmpeg(inputPath)
+                .toFormat('wav')
+                .audioChannels(1)
+                .audioFrequency(16000)
+                .on('end', () => resolve())
+                .on('error', (err) => reject(err))
+                .save(outputPath);
+        });
+
+        // Read WAV file
+        const wavBuffer = readFileSync(outputPath);
+
+        // Parse WAV header (skip 44 bytes for standard WAV header)
+        const samples = new Int16Array(
+            wavBuffer.buffer,
+            wavBuffer.byteOffset + 44,
+            (wavBuffer.length - 44) / 2
+        );
+
+        // Convert Int16 to Float32 (normalize to -1.0 to 1.0)
+        const float32Data = new Float32Array(samples.length);
+        for (let i = 0; i < samples.length; i++) {
+            float32Data[i] = samples[i] / 32768.0;
+        }
+
+        return float32Data;
+    } finally {
+        // Clean up temp files
+        try {
+            unlinkSync(inputPath);
+        } catch (e) {
+            /* ignore */
+        }
+        try {
+            unlinkSync(outputPath);
+        } catch (e) {
+            /* ignore */
+        }
+    }
+}
+
 export async function transcribe(audioBuffer: Buffer): Promise<string> {
     if (!whisperPipeline) {
         throw new Error('Whisper model not initialized');
     }
 
-    let tempFilePath: string | null = null;
-
     try {
         logger.info(`Transcribing audio (${audioBuffer.length} bytes)...`);
         const startTime = Date.now();
 
-        // Save buffer to temporary file
-        tempFilePath = join(tmpdir(), `whisper-temp-${Date.now()}.webm`);
-        writeFileSync(tempFilePath, audioBuffer);
-
-        // Decode audio file to raw PCM data
-        const audioData = await read_audio(tempFilePath, 16000); // 16kHz sampling rate for Whisper
+        // Decode audio to Float32Array
+        const audioData = await decodeAudio(audioBuffer);
+        logger.info(`Audio decoded: ${audioData.length} samples`);
 
         // Transcribe the decoded audio
         const result = await whisperPipeline(audioData);
@@ -57,15 +111,6 @@ export async function transcribe(audioBuffer: Buffer): Promise<string> {
     } catch (error) {
         logger.error('Transcription failed:', error);
         throw error;
-    } finally {
-        // Clean up temporary file
-        if (tempFilePath) {
-            try {
-                unlinkSync(tempFilePath);
-            } catch (cleanupError) {
-                logger.warn(`Failed to clean up temp file: ${tempFilePath}`, cleanupError);
-            }
-        }
     }
 }
 
