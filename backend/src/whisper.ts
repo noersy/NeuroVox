@@ -1,4 +1,7 @@
-import { pipeline, AutomaticSpeechRecognitionPipeline } from '@huggingface/transformers';
+import { pipeline, AutomaticSpeechRecognitionPipeline, read_audio } from '@huggingface/transformers';
+import { writeFileSync, unlinkSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import { logger } from './utils/logger';
 import { config } from './config';
 
@@ -13,8 +16,7 @@ export async function initializeWhisper(): Promise<void> {
             'automatic-speech-recognition',
             config.modelName,
             {
-                cache_dir: config.modelCacheDir,
-                quantized: true // Use quantized model for faster inference
+                cache_dir: config.modelCacheDir
             }
         );
 
@@ -30,19 +32,40 @@ export async function transcribe(audioBuffer: Buffer): Promise<string> {
         throw new Error('Whisper model not initialized');
     }
 
+    let tempFilePath: string | null = null;
+
     try {
         logger.info(`Transcribing audio (${audioBuffer.length} bytes)...`);
         const startTime = Date.now();
 
-        const result = await whisperPipeline(audioBuffer);
+        // Save buffer to temporary file
+        tempFilePath = join(tmpdir(), `whisper-temp-${Date.now()}.webm`);
+        writeFileSync(tempFilePath, audioBuffer);
+
+        // Decode audio file to raw PCM data
+        const audioData = await read_audio(tempFilePath, 16000); // 16kHz sampling rate for Whisper
+
+        // Transcribe the decoded audio
+        const result = await whisperPipeline(audioData);
 
         const duration = (Date.now() - startTime) / 1000;
         logger.info(`Transcription completed in ${duration.toFixed(2)}s`);
 
-        return result.text;
+        // Handle both single result and array results
+        const output = Array.isArray(result) ? result[0] : result;
+        return output.text;
     } catch (error) {
         logger.error('Transcription failed:', error);
         throw error;
+    } finally {
+        // Clean up temporary file
+        if (tempFilePath) {
+            try {
+                unlinkSync(tempFilePath);
+            } catch (cleanupError) {
+                logger.warn(`Failed to clean up temp file: ${tempFilePath}`, cleanupError);
+            }
+        }
     }
 }
 
