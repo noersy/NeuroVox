@@ -1,4 +1,4 @@
-import { EditorPosition, Notice, TFile } from 'obsidian';
+import { EditorPosition, Notice, TFile, Editor, MarkdownView } from 'obsidian';
 import NeuroVoxPlugin from '../../main';
 
 /**
@@ -13,16 +13,35 @@ export class DocumentInserter {
      * @param audioFilePath Optional path to the audio file
      * @param file The target file
      * @param position The cursor position for insertion
+     * @param editor Optional active editor instance to avoid race conditions
      */
     public async insertContent(
         transcription: string,
         audioFilePath: string | undefined,
         file: TFile,
-        position: EditorPosition
+        position: EditorPosition,
+        editor?: Editor
     ): Promise<void> {
         try {
             const formattedContent = this.formatContent(transcription, audioFilePath);
-            await this.insertAtPosition(formattedContent, file, position);
+            
+            // If editor is provided and matches the file, use it for safe insertion
+            if (editor) {
+                // We double check if editor is still editing the correct file if possible, 
+                // but usually the caller ensures context.
+                // Obsidian's API doesn't easily link Editor to File directly without View, 
+                // but we can assume the caller passed the correct editor.
+                
+                // However, we need to be careful about the position. 
+                // If the "Live Preview" was just removed, the cursor position 'position' 
+                // passed here (which was captured at start) might be valid 
+                // if the text was removed cleanly.
+                
+                editor.replaceRange(formattedContent, position);
+            } else {
+                // Fallback to vault modification (riskier for active files)
+                await this.insertAtPosition(formattedContent, file, position);
+            }
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
             new Notice(`Content insertion failed: ${message}`);

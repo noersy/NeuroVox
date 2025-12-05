@@ -1,4 +1,4 @@
-import { Notice, TFile, EditorPosition } from 'obsidian';
+import { Notice, TFile, EditorPosition, Editor } from 'obsidian';
 import NeuroVoxPlugin from '../main';
 import { AudioProcessor } from './audio/AudioProcessor';
 import { TranscriptionService } from './transcription/TranscriptionService';
@@ -50,7 +50,8 @@ export class RecordingProcessor {
         audioBlob: Blob,
         activeFile: TFile,
         cursorPosition: EditorPosition,
-        audioFilePath?: string
+        audioFilePath?: string,
+        editor?: Editor
     ): Promise<void> {
         if (this.processingState.getIsProcessing()) {
             throw new Error('Recording is already in progress.');
@@ -87,7 +88,8 @@ export class RecordingProcessor {
                 transcription,
                 audioResult.finalPath,
                 activeFile,
-                cursorPosition
+                cursorPosition,
+                editor
             );
             this.processingState.completeStep();
 
@@ -106,7 +108,8 @@ export class RecordingProcessor {
     public async processStreamingResult(
         transcriptionResult: string,
         activeFile: TFile,
-        cursorPosition: EditorPosition
+        cursorPosition: EditorPosition,
+        editor?: Editor
     ): Promise<void> {
         if (this.processingState.getIsProcessing()) {
             throw new Error('Recording is already in progress.');
@@ -122,7 +125,8 @@ export class RecordingProcessor {
                 transcriptionResult,
                 undefined, // No audioFilePath for streaming mode
                 activeFile,
-                cursorPosition
+                cursorPosition,
+                editor
             );
             this.processingState.completeStep();
 

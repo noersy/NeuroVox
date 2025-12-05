@@ -539,7 +539,8 @@ export default class NeuroVoxPlugin extends Plugin {
                         await this.recordingProcessor.processStreamingResult(
                             result,
                             activeFile,
-                            activeView.editor.getCursor()
+                            activeView.editor.getCursor(),
+                            activeView.editor
                         );
                     } else {
                         // Legacy mode - need to transcribe
@@ -551,7 +552,9 @@ export default class NeuroVoxPlugin extends Plugin {
                         await this.recordingProcessor.processRecording(
                             result, 
                             activeFile,
-                            activeView.editor.getCursor()
+                            activeView.editor.getCursor(),
+                            undefined,
+                            activeView.editor
                         );
                     }
                 } catch (error) {

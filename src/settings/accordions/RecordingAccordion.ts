@@ -41,8 +41,25 @@ export class RecordingAccordion extends BaseAccordion {
         // Add this before createTranscriptionModelSetting
         this.createTranscriptionFormatSetting();
 
+        // Streaming Mode
+        this.createStreamingModeSetting();
+
         // Transcription Model Selection
         this.createTranscriptionModelSetting();
+    }
+
+    public createStreamingModeSetting(): void {
+        new Setting(this.contentEl)
+            .setName("Enable Live Transcription (Streaming)")
+            .setDesc("If enabled, text will appear in real-time as you speak. If disabled, transcription happens only after recording stops.")
+            .addToggle(toggle => {
+                toggle
+                    .setValue(this.settings.streamingMode)
+                    .onChange(async (value) => {
+                        this.settings.streamingMode = value;
+                        await this.plugin.saveSettings();
+                    });
+            });
     }
 
     public createTranscriptPathSetting(): void {

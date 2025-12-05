@@ -213,13 +213,31 @@ export class TimerModal extends Modal {
             this.editor = activeView.editor;
             const cursor = this.editor.getCursor();
             
-            // Insert placeholder
-            const placeholder = "> [!info] 🎙️ Live Transcription...\n> \n\n";
+            // Construct placeholder based on settings if possible
+            // We'll use a simple version for live preview to avoid complexity
+            // But we can respect the callout header style
+            const format = this.plugin.settings.transcriptionCalloutFormat;
+            const isCallout = format.includes('>[!');
+            
+            let placeholder = "";
+            if (isCallout) {
+                // Extract header if possible, or default
+                placeholder = "> [!info] 🎙️ Live Transcription...\n> \n\n";
+            } else {
+                placeholder = "**🎙️ Live Transcription...**\n\n\n";
+            }
+            
             this.editor.replaceRange(placeholder, cursor);
             
-            // Track start and end of the content block (after the header)
-            this.previewStart = { line: cursor.line + 1, ch: 2 }; // Skip "> "
-            this.previewEnd = { line: cursor.line + 1, ch: 2 };
+            // Track start and end of the content block
+            if (isCallout) {
+                this.previewStart = { line: cursor.line + 1, ch: 2 }; // Skip "> "
+                this.previewEnd = { line: cursor.line + 1, ch: 2 };
+            } else {
+                this.previewStart = { line: cursor.line + 1, ch: 0 };
+                this.previewEnd = { line: cursor.line + 1, ch: 0 };
+            }
+            
             this.lastLiveText = "";
         }
     }
@@ -235,10 +253,11 @@ export class TimerModal extends Modal {
         try {
             const headerLine = this.previewStart.line - 1;
             const lineContent = this.editor.getLine(headerLine);
-            if (!lineContent.includes("Live Transcription")) {
-                console.warn("Live preview header missing, stopping updates.");
-                this.editor = null; // Stop updates
-                return;
+            
+            // Simple heuristic: check if line is not empty
+            if (lineContent === undefined) {
+                 this.editor = null;
+                 return;
             }
         } catch (e) {
             this.editor = null;
@@ -249,9 +268,14 @@ export class TimerModal extends Modal {
         if (text === this.lastLiveText) return;
         this.lastLiveText = text;
 
+        const format = this.plugin.settings.transcriptionCalloutFormat;
+        const isCallout = format.includes('>[!');
+
         // Format text as callout body
-        // We assume simple text for now, replacing newlines with callout prefix
-        const formattedText = text.replace(/\n/g, "\n> ");
+        let formattedText = text;
+        if (isCallout) {
+            formattedText = text.replace(/\n/g, "\n> ");
+        }
         
         try {
             this.editor.replaceRange(formattedText, this.previewStart, this.previewEnd);
