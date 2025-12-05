@@ -47,7 +47,8 @@ export class TimerModal extends Modal {
         
         // Configure based on device type
         const streamingOptions = this.deviceDetection.getOptimalStreamingOptions();
-        this.useStreaming = this.deviceDetection.shouldUseStreamingMode();
+        // Use streaming if enabled in settings OR if device capabilities require it
+        this.useStreaming = this.plugin.settings.streamingMode || this.deviceDetection.shouldUseStreamingMode();
         
         this.CONFIG = {
             maxDuration: 12 * 60,
