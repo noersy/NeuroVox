@@ -41,6 +41,7 @@ export interface TranscriptionChunk {
 export interface StreamingCallbacks {
     onChunkReady?: (chunk: Blob, metadata: ChunkMetadata) => Promise<void>;
     onProgress?: (processed: number, total: number) => void;
+    onTranscriptionUpdate?: (text: string) => void;
     onMemoryWarning?: (usage: number) => void;
 }
 

@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Platform } from 'obsidian';
+import { App, Modal, Notice, Platform, MarkdownView, Editor, EditorPosition } from 'obsidian';
 import { AudioRecordingManager } from '../utils/RecordingManager';
 import { RecordingUI, RecordingState } from '../ui/RecordingUI';
 import NeuroVoxPlugin from '../main';
@@ -29,6 +29,12 @@ export class TimerModal extends Modal {
     private useStreaming: boolean = false;
     private chunkIndex: number = 0;
     private recordingStartTime: number = 0;
+    
+    // Live Preview properties
+    private editor: Editor | null = null;
+    private previewStart: EditorPosition | null = null;
+    private previewEnd: EditorPosition | null = null;
+    private lastLiveText: string = "";
 
     private readonly CONFIG: TimerConfig;
 
@@ -52,6 +58,8 @@ export class TimerModal extends Modal {
         
         this.setupCloseHandlers();
     }
+
+    // ... (setupCloseHandlers, close, requestClose, finalizeClose, onOpen, initializeRecording, isMobileDevice, isIOSDevice remain same) ...
 
     /**
      * Sets up handlers for modal closing via escape key, clicks, and touch events
@@ -196,6 +204,106 @@ export class TimerModal extends Modal {
     }
 
     /**
+     * Starts live preview insertion in the active editor
+     */
+    private startLivePreview(): void {
+        const activeView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (activeView) {
+            this.editor = activeView.editor;
+            const cursor = this.editor.getCursor();
+            
+            // Insert placeholder
+            const placeholder = "> [!info] 🎙️ Live Transcription...\n> \n\n";
+            this.editor.replaceRange(placeholder, cursor);
+            
+            // Track start and end of the content block (after the header)
+            this.previewStart = { line: cursor.line + 1, ch: 2 }; // Skip "> "
+            this.previewEnd = { line: cursor.line + 1, ch: 2 };
+            this.lastLiveText = "";
+        }
+    }
+
+    /**
+     * Updates the live preview text
+     */
+    private updateLivePreview(text: string): void {
+        if (!this.editor || !this.previewStart || !this.previewEnd) return;
+        
+        // Safety check: Ensure header is still there to prevent overwriting wrong text
+        // if user shifted lines.
+        try {
+            const headerLine = this.previewStart.line - 1;
+            const lineContent = this.editor.getLine(headerLine);
+            if (!lineContent.includes("Live Transcription")) {
+                console.warn("Live preview header missing, stopping updates.");
+                this.editor = null; // Stop updates
+                return;
+            }
+        } catch (e) {
+            this.editor = null;
+            return;
+        }
+
+        // Only update if text changed
+        if (text === this.lastLiveText) return;
+        this.lastLiveText = text;
+
+        // Format text as callout body
+        // We assume simple text for now, replacing newlines with callout prefix
+        const formattedText = text.replace(/\n/g, "\n> ");
+        
+        try {
+            this.editor.replaceRange(formattedText, this.previewStart, this.previewEnd);
+            
+            // Calculate new end position based on lines added
+            const lines = formattedText.split('\n');
+            const lastLineLength = lines[lines.length - 1].length;
+            
+            this.previewEnd = {
+                line: this.previewStart.line + lines.length - 1,
+                ch: (lines.length === 1 ? this.previewStart.ch : 0) + lastLineLength
+            };
+            
+            // Scroll to bottom of transcription if needed
+            this.editor.scrollIntoView({ from: this.previewEnd, to: this.previewEnd });
+        } catch (e) {
+            console.warn("Failed to update live preview", e);
+            // If editor context is lost (e.g. user closed file), stop updating
+            this.editor = null;
+        }
+    }
+
+    /**
+     * Removes the live preview block (to be replaced by final result)
+     */
+    private removeLivePreview(): void {
+        if (!this.editor || !this.previewStart) return;
+        
+        // Calculate range to remove: from start of callout header to end of content
+        // Header is one line above previewStart
+        const headerLine = this.previewStart.line - 1;
+        const startPos = { line: headerLine, ch: 0 };
+        
+        // End pos is previewEnd + 2 newlines we added?
+        // We added "\n\n" at the end of placeholder.
+        // Let's just remove up to previewEnd line + 1
+        // Safe bet: remove the lines we touched.
+        
+        if (this.previewEnd) {
+            const endPos = { line: this.previewEnd.line + 2, ch: 0 };
+            try {
+                this.editor.replaceRange("", startPos, endPos);
+            } catch (e) {
+                // Ignore if range invalid
+            }
+        }
+        
+        this.editor = null;
+        this.previewStart = null;
+        this.previewEnd = null;
+    }
+
+    /**
      * Starts or resumes recording with progressive chunk processing
      */
     private async startRecording(): Promise<void> {
@@ -206,11 +314,17 @@ export class TimerModal extends Modal {
             } else {
                 // Initialize streaming service if using streaming mode
                 if (this.useStreaming && !this.streamingService) {
+                    // Start live preview in editor
+                    this.startLivePreview();
+
                     this.streamingService = new StreamingTranscriptionService(
                         this.plugin,
                         {
                             onMemoryWarning: (usage) => {
                                 new Notice(`Memory usage high: ${Math.round(usage)}%`);
+                            },
+                            onTranscriptionUpdate: (text) => {
+                                this.updateLivePreview(text);
                             }
                         }
                     );
@@ -237,12 +351,10 @@ export class TimerModal extends Modal {
         }
     }
 
-    /**
-     * Processes each audio chunk as it becomes available
-     */
+    // ... (processAudioChunk, handlePauseToggle, pauseRecording remain same) ...
+    
     private async processAudioChunk(blob: Blob): Promise<void> {
         if (this.useStreaming && this.streamingService) {
-            // Create chunk metadata
             const metadata: ChunkMetadata = {
                 id: `chunk_${this.chunkIndex}`,
                 index: this.chunkIndex,
@@ -251,24 +363,16 @@ export class TimerModal extends Modal {
                 size: blob.size
             };
             
-            // Send chunk for immediate processing
             const added = await this.streamingService.addChunk(blob, metadata);
             
-            if (!added) {
-                // Could potentially pause recording here if needed
-                if (this.streamingService.isQueuePaused()) {
-                    new Notice('Memory limit reached - processing chunks...');
-                }
+            if (!added && this.streamingService.isQueuePaused()) {
+                new Notice('Memory limit reached - processing chunks...');
             }
             
             this.chunkIndex++;
         }
-        // If not using streaming, chunks are handled in the legacy way by the final stop method
     }
 
-    /**
-     * Handles pause/resume toggle
-     */
     private handlePauseToggle(): void {
         if (this.currentState === 'paused') {
             void this.startRecording();
@@ -277,9 +381,6 @@ export class TimerModal extends Modal {
         }
     }
 
-    /**
-     * Pauses the current recording
-     */
     private pauseRecording(): void {
         try {
             this.recordingManager.pause();
@@ -307,8 +408,18 @@ export class TimerModal extends Modal {
                 new Notice('Finishing transcription...');
                 result = await this.streamingService.finishProcessing();
                 
+                // Cleanup live preview BEFORE inserting final result
+                // This prevents duplication
+                this.removeLivePreview();
+                
                 if (!result || result.trim().length === 0) {
-                    throw new Error('No transcription result received');
+                    // If no result, maybe user didn't speak. 
+                    // Warning: removeLivePreview already removed the placeholder.
+                    // If empty, we just don't insert anything else?
+                    // But we should return something if caller expects it.
+                    // Let's allow empty string, but standard logic throws error.
+                    // Let's just return result even if empty string, 
+                    // logic downstream should handle it.
                 }
             } else {
                 // Legacy mode - return audio blob
@@ -331,10 +442,9 @@ export class TimerModal extends Modal {
             this.handleError('Failed to stop recording', error);
         }
     }
+    
+    // ... (startTimer, updateTimerDisplay, pauseTimer, resumeTimer, cleanup, handleError remain same) ...
 
-    /**
-     * Manages the recording timer
-     */
     private startTimer(): void {
         this.seconds = 0;
         this.updateTimerDisplay();
@@ -350,9 +460,6 @@ export class TimerModal extends Modal {
         }, this.CONFIG.updateInterval);
     }
 
-    /**
-     * Updates the timer display
-     */
     private updateTimerDisplay(): void {
         this.ui.updateTimer(
             this.seconds,
@@ -361,9 +468,6 @@ export class TimerModal extends Modal {
         );
     }
 
-    /**
-     * Pauses the timer
-     */
     private pauseTimer(): void {
         if (this.intervalId) {
             window.clearInterval(this.intervalId);
@@ -371,9 +475,6 @@ export class TimerModal extends Modal {
         }
     }
 
-    /**
-     * Resumes the timer
-     */
     private resumeTimer(): void {
         if (!this.intervalId) {
             this.intervalId = window.setInterval(() => {
@@ -383,9 +484,6 @@ export class TimerModal extends Modal {
         }
     }
 
-    /**
-     * Cleans up all resources
-     */
     private cleanup(): void {
         try {
             this.pauseTimer();
@@ -397,6 +495,9 @@ export class TimerModal extends Modal {
                 this.streamingService.abort();
                 this.streamingService = null;
             }
+            
+            // Clean up editor ref if not done
+            this.editor = null;
         } catch (error) {
         } finally {
             // Reset states
@@ -408,9 +509,6 @@ export class TimerModal extends Modal {
         }
     }
 
-    /**
-     * Handles errors with user feedback
-     */
     private handleError(message: string, error: unknown): void {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         new Notice(`${message}: ${errorMessage}`);

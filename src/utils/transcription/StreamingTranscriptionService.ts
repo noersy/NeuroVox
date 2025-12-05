@@ -146,6 +146,11 @@ export class StreamingTranscriptionService {
             const total = this.processedChunks.size + this.chunkQueue.size();
             this.callbacks.onProgress(this.processedChunks.size, total);
         }
+
+        // Notify transcription update
+        if (this.callbacks.onTranscriptionUpdate) {
+            this.callbacks.onTranscriptionUpdate(this.getPartialResult());
+        }
     }
 
     private async processQueueLoop() {
