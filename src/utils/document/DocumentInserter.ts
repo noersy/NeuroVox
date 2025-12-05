@@ -1,4 +1,4 @@
-import { EditorPosition, Notice, TFile, Editor, MarkdownView } from 'obsidian';
+import { EditorPosition, Notice, TFile, Editor } from 'obsidian';
 import NeuroVoxPlugin from '../../main';
 
 /**
