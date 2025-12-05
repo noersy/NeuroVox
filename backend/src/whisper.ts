@@ -2,6 +2,7 @@ import { pipeline, AutomaticSpeechRecognitionPipeline } from '@huggingface/trans
 import { writeFileSync, unlinkSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { Readable } from 'stream';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
 import { logger } from './utils/logger';
@@ -110,6 +111,55 @@ async function decodeAudio(audioBuffer: Buffer): Promise<Float32Array> {
     }
 }
 
+/**
+ * Decodes audio buffer to Float32Array using ffmpeg (in-memory)
+ */
+async function decodeAudioBuffer(audioBuffer: Buffer): Promise<Float32Array> {
+    return new Promise((resolve, reject) => {
+        const inputStream = Readable.from(audioBuffer);
+        const chunks: Buffer[] = [];
+
+        const command = ffmpeg(inputStream)
+            .inputFormat('webm') // Assuming WebM from browsers, but ffmpeg might probe it
+            .format('s16le')
+            .audioChannels(1)
+            .audioFrequency(16000)
+            .on('error', (err) => {
+                logger.error('FFmpeg decoding error:', err);
+                reject(err);
+            });
+
+        const stream = command.pipe();
+
+        stream.on('data', (chunk) => {
+            chunks.push(chunk);
+        });
+
+        stream.on('end', () => {
+            const rawBuffer = Buffer.concat(chunks);
+            
+            // Convert Int16 (s16le) to Float32
+            const samples = new Int16Array(
+                rawBuffer.buffer,
+                rawBuffer.byteOffset,
+                rawBuffer.length / 2
+            );
+
+            // Convert Int16 to Float32 (normalize to -1.0 to 1.0)
+            const float32Data = new Float32Array(samples.length);
+            for (let i = 0; i < samples.length; i++) {
+                float32Data[i] = samples[i] / 32768.0;
+            }
+
+            resolve(float32Data);
+        });
+        
+        stream.on('error', (err) => {
+             reject(err);
+        });
+    });
+}
+
 async function transcribeV2(audioData: Float32Array, language?: string): Promise<string> {
     // Prepare transcription options
     const options: any = {
@@ -170,6 +220,39 @@ export async function transcribe(audioBuffer: Buffer, language?: string): Promis
         return resultText;
     } catch (error) {
         logger.error('Transcription failed:', error);
+        throw error;
+    }
+}
+
+export async function transcribeBuffer(audioBuffer: Buffer, language?: string): Promise<string> {
+     try {
+        logger.debug(`Transcribing buffer (${audioBuffer.length} bytes, language: ${language || 'auto'})...`);
+        
+        // Decode audio to Float32Array using in-memory buffer
+        const audioData = await decodeAudioBuffer(audioBuffer);
+        logger.debug(`Buffer decoded: ${audioData.length} samples`);
+
+        let resultText: string;
+
+        if (isV2Model) {
+            resultText = await transcribeV2(audioData, language);
+        } else {
+            const options: any = {
+                return_timestamps: false
+            };
+
+            if (language && language !== 'auto') {
+                options.language = language;
+            }
+
+            const result = await whisperPipeline(audioData, options);
+            const output = Array.isArray(result) ? result[0] : result;
+            resultText = output.text;
+        }
+
+        return resultText;
+    } catch (error) {
+        logger.error('Buffer transcription failed:', error);
         throw error;
     }
 }
