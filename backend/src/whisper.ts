@@ -6,7 +6,6 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
 import { logger } from './utils/logger';
 import { config } from './config';
-import { AutoProcessor, AutoModelForSpeechSeq2Seq } from '@xenova/transformers';
 
 // Configure ffmpeg path
 ffmpeg.setFfmpegPath(ffmpegPath.path);
@@ -18,7 +17,7 @@ export async function initializeWhisper(): Promise<void> {
     try {
         logger.info(`Loading Whisper model: ${config.modelName}...`);
         logger.info('This may take a few minutes on first run (downloading model)');
-        
+
         // Try loading with default (v3)
         try {
             whisperPipeline = await pipeline(
@@ -32,16 +31,16 @@ export async function initializeWhisper(): Promise<void> {
         } catch (v3Error) {
             logger.warn('Failed to load model with v3, trying v2 compatibility fallback...');
             logger.warn(v3Error);
-            
+
             // Fallback for v2-compatible models
-            const processor = await AutoProcessor.from_pretrained(config.modelName, {
-                cache_dir: config.modelCacheDir,
-            });
-            const model = await AutoModelForSpeechSeq2Seq.from_pretrained(config.modelName, {
-                cache_dir: config.modelCacheDir,
-            });
-            
-            whisperPipeline = { model, processor };
+            // whisperPipelinev2 = await pipelinev2(
+            //     'automatic-speech-recognition',
+            //     config.modelName,
+            //     {
+            //         cache_dir: config.modelCacheDir
+            //     }
+            // );
+
             isV2Model = true;
         }
 
@@ -112,32 +111,27 @@ async function decodeAudio(audioBuffer: Buffer): Promise<Float32Array> {
 }
 
 async function transcribeV2(audioData: Float32Array, language?: string): Promise<string> {
-    const { model, processor } = whisperPipeline;
+    // Prepare transcription options
+    const options: any = {
+        return_timestamps: false
+    };
 
-    // Process audio data
-    const inputFeatures = await processor(audioData, {
-        sampling_rate: 16000,
-        return_tensors: 'pt'
-    });
+    // Add language if specified and not 'auto'
+    // if (language && language !== 'auto') {
+    //     options.language = language;
+    // }
 
-    // Generate token ids
-    const generatedIds = await model.generate(inputFeatures.input_features, {
-        max_length: 448,
-        language: language && language !== 'auto' ? language : undefined,
-    });
-    
-    // Decode token ids to text
-    const transcription = await processor.batch_decode(generatedIds, {
-        skip_special_tokens: true
-    });
+    // const result = await whisperPipelinev2(audioData, options);
 
-    return transcription[0].trim();
+    // Handle both single result and array results
+    // const output = Array.isArray(result) ? result[0] : result;
+    return "";
 }
 
 export async function transcribe(audioBuffer: Buffer, language?: string): Promise<string> {
-    if (!whisperPipeline) {
-        throw new Error('Whisper model not initialized');
-    }
+    // if (!whisperPipeline || !whisperPipelinev2) {
+    //     throw new Error('Whisper model not initialized');
+    // }
 
     try {
         logger.info(`Transcribing audio (${audioBuffer.length} bytes, language: ${language || 'auto'})...`);
@@ -156,20 +150,20 @@ export async function transcribe(audioBuffer: Buffer, language?: string): Promis
             const options: any = {
                 return_timestamps: false
             };
-    
+
             // Add language if specified and not 'auto'
             if (language && language !== 'auto') {
                 options.language = language;
             }
-    
+
             // Transcribe the decoded audio with language option
             const result = await whisperPipeline(audioData, options);
-    
+
             // Handle both single result and array results
             const output = Array.isArray(result) ? result[0] : result;
             resultText = output.text;
         }
-        
+
         const duration = (Date.now() - startTime) / 1000;
         logger.info(`Transcription completed in ${duration.toFixed(2)}s`);
 
