@@ -1,25 +1,28 @@
 import { ChunkMetadata, TranscriptionChunk, StreamingCallbacks } from '../../types';
 import { ChunkQueue } from '../audio/ChunkQueue';
 import { ResultCompiler } from './ResultCompiler';
-import { TranscriptionService } from './TranscriptionService';
 import { DeviceDetection } from '../DeviceDetection';
 import NeuroVoxPlugin from '../../main';
+import { Notice } from 'obsidian';
 
 export class StreamingTranscriptionService {
     private chunkQueue: ChunkQueue;
     private resultCompiler: ResultCompiler;
-    private transcriptionService: TranscriptionService;
-    private deviceDetection: DeviceDetection;
+    private plugin: NeuroVoxPlugin;
     private isProcessing: boolean = false;
     private processedChunks: Set<string> = new Set();
     private callbacks: StreamingCallbacks;
-    private abortController: AbortController | null = null;
-    private processingPromise: Promise<void> | null = null;
+    
+    private socket: WebSocket | null = null;
+    private socketUrl: string;
+    private isSocketOpen: boolean = false;
+    private deviceDetection: DeviceDetection;
 
     constructor(
-        private plugin: NeuroVoxPlugin,
+        plugin: NeuroVoxPlugin,
         callbacks?: StreamingCallbacks
     ) {
+        this.plugin = plugin;
         this.deviceDetection = DeviceDetection.getInstance();
         const options = this.deviceDetection.getOptimalStreamingOptions();
         
@@ -30,8 +33,13 @@ export class StreamingTranscriptionService {
         );
         
         this.resultCompiler = new ResultCompiler();
-        this.transcriptionService = new TranscriptionService(plugin);
         this.callbacks = callbacks || {};
+
+        // Construct WebSocket URL
+        const backendUrl = this.plugin.settings.backendUrl || 'http://localhost:3847';
+        // Simple replacement of protocol
+        const wsUrl = backendUrl.replace(/^http/, 'ws');
+        this.socketUrl = `${wsUrl}/api/live`;
     }
 
     async addChunk(chunk: Blob, metadata: ChunkMetadata): Promise<boolean> {
@@ -44,7 +52,7 @@ export class StreamingTranscriptionService {
 
         // Start processing if not already running
         if (!this.isProcessing) {
-            this.processingPromise = this.startProcessing();
+            this.startProcessing();
         }
 
         return true;
@@ -54,90 +62,143 @@ export class StreamingTranscriptionService {
         if (this.isProcessing) return;
         
         this.isProcessing = true;
-        this.abortController = new AbortController();
-
+        
         try {
-            while (this.isProcessing && !this.abortController.signal.aborted) {
-                // Check if we have chunks to process
-                const queueItem = this.chunkQueue.dequeue();
-                
-                if (!queueItem) {
-                    // No chunks available, wait a bit
-                    await this.sleep(100);
-                    continue;
-                }
-
-                try {
-                    // Process the chunk
-                    await this.processChunk(queueItem.chunk, queueItem.metadata);
-                } catch (error) {
-                    // Continue with next chunk even if one fails
-                }
-            }
-        } finally {
+            await this.connectSocket();
+            this.processQueueLoop();
+        } catch (error) {
+            console.error('Failed to connect to streaming server:', error);
+            new Notice('⚠️ Connection to streaming backend failed');
             this.isProcessing = false;
-            this.abortController = null;
         }
     }
 
-    private async processChunk(chunk: Blob, metadata: ChunkMetadata): Promise<void> {
-        try {
-            // Convert blob to ArrayBuffer
-            const arrayBuffer = await chunk.arrayBuffer();
-
-            // Transcribe the chunk
-            const transcript = await this.transcriptionService.transcribeContent(arrayBuffer);
-
-            // Create transcription chunk
-            const transcriptionChunk: TranscriptionChunk = {
-                metadata,
-                transcript: transcript,
-                processed: true
-            };
-
-            // Add to result compiler
-            this.resultCompiler.addSegment(transcriptionChunk);
-            this.processedChunks.add(metadata.id);
-
-            // Notify progress
-            if (this.callbacks.onProgress) {
-                const totalChunks = this.processedChunks.size + this.chunkQueue.size();
-                this.callbacks.onProgress(this.processedChunks.size, totalChunks);
+    private connectSocket(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                resolve();
+                return;
             }
 
-            // Clean up the blob to free memory
-            this.cleanupBlob(chunk);
+            try {
+                this.socket = new WebSocket(this.socketUrl);
 
-        } catch (error) {
-            throw error;
+                this.socket.onopen = () => {
+                    this.isSocketOpen = true;
+                    resolve();
+                };
+
+                this.socket.onmessage = (event) => {
+                    this.handleMessage(event.data);
+                };
+
+                this.socket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    if (!this.isSocketOpen) reject(error);
+                };
+
+                this.socket.onclose = () => {
+                    this.isSocketOpen = false;
+                    // If closed unexpectedly during processing, we might want to handle it
+                };
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
+    private handleMessage(data: any) {
+        try {
+            const message = JSON.parse(data.toString());
+            
+            if (message.type === 'transcription') {
+                this.handleTranscriptionResult(message.text);
+            } else if (message.type === 'error') {
+                console.warn('Streaming backend reported error:', message.message);
+            }
+        } catch (e) {
+            console.warn('Received invalid message from streaming backend');
+        }
+    }
+
+    private handleTranscriptionResult(text: string) {
+        if (!text) return;
+
+        // Create a synthetic chunk for the result
+        // We use the current time as a proxy for the timestamp since backend doesn't provide it
+        const chunk: TranscriptionChunk = {
+            metadata: {
+                id: `stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                index: this.processedChunks.size,
+                duration: 0, // Unknown duration for this specific segment
+                timestamp: Date.now(),
+                size: 0
+            },
+            transcript: text,
+            processed: true
+        };
+
+        this.resultCompiler.addSegment(chunk);
+        
+        // Notify partial result update
+        // We calculate progress based on queue
+        if (this.callbacks.onProgress) {
+            const total = this.processedChunks.size + this.chunkQueue.size();
+            this.callbacks.onProgress(this.processedChunks.size, total);
+        }
+    }
+
+    private async processQueueLoop() {
+        while (this.isProcessing && this.isSocketOpen) {
+            const item = this.chunkQueue.dequeue();
+            
+            if (!item) {
+                // No chunks available, wait a bit
+                await this.sleep(50);
+                continue;
+            }
+
+            try {
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    const buffer = await item.chunk.arrayBuffer();
+                    this.socket.send(buffer);
+                    
+                    this.processedChunks.add(item.metadata.id);
+                    this.cleanupBlob(item.chunk);
+                } else {
+                    // Socket closed? Put it back? 
+                    // For now, just break logic or try reconnect
+                    console.warn('Socket closed while processing queue');
+                    break;
+                }
+            } catch (error) {
+                console.error('Error processing chunk:', error);
+            }
         }
     }
 
     async finishProcessing(): Promise<string> {
-        // Stop accepting new chunks
+        // Stop accepting new processing loops
         this.isProcessing = false;
 
-        // Wait for queue to be processed
+        // Wait for queue to empty
         let attempts = 0;
-        const maxAttempts = 300; // 30 seconds timeout
-        
-        while (this.chunkQueue.size() > 0 && attempts < maxAttempts) {
-            await this.sleep(100);
+        while (this.chunkQueue.size() > 0 && attempts < 100) { // Wait up to 5s
+            await this.sleep(50);
             attempts++;
         }
 
-        // Abort if still processing after timeout
-        if (this.abortController) {
-            this.abortController.abort();
-        }
-
-        // Wait for processing to complete
-        if (this.processingPromise) {
+        // Send flush command
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
             try {
-                await this.processingPromise;
-            } catch (error) {
-                // Silent fail
+                this.socket.send(JSON.stringify({ type: 'flush' }));
+                // Wait a bit for the flush result to come back
+                await this.sleep(1000);
+            } catch (e) {
+                console.error('Failed to flush stream:', e);
             }
+            
+            this.socket.close();
         }
 
         // Get final result
@@ -164,9 +225,13 @@ export class StreamingTranscriptionService {
 
     abort(): void {
         this.isProcessing = false;
-        if (this.abortController) {
-            this.abortController.abort();
+        this.chunkQueue.clear();
+        
+        if (this.socket) {
+            this.socket.close();
+            this.socket = null;
         }
+        
         this.cleanup();
     }
 
@@ -175,12 +240,9 @@ export class StreamingTranscriptionService {
         this.resultCompiler.clear();
         this.processedChunks.clear();
         this.isProcessing = false;
-        this.abortController = null;
-        this.processingPromise = null;
     }
 
     private cleanupBlob(blob: Blob): void {
-        // Attempt to revoke object URL if it exists
         try {
             if (blob && typeof URL.revokeObjectURL === 'function') {
                 URL.revokeObjectURL(blob as any);

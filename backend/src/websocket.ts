@@ -14,18 +14,30 @@ export function initializeWebSocket(server: Server) {
         let audioBuffer: Buffer[] = [];
         let transcriptionTimer: NodeJS.Timeout | null = null;
         let isTranscribing = false;
+        let lastTranscriptionTime = Date.now();
 
         ws.on('message', async (message: any, isBinary: boolean) => {
             if (isBinary) {
                 // Binary message = Audio Chunk
                 audioBuffer.push(message);
 
-                // Debounce: Transcribe if no new data for 500ms
+                // 1. Silence Detection (Debounce): Transcribe if no new data for 500ms
                 if (transcriptionTimer) clearTimeout(transcriptionTimer);
                 
                 transcriptionTimer = setTimeout(() => {
                     triggerTranscription();
                 }, 500);
+
+                // 2. Continuous Transcription (Throttle): Transcribe if buffer gets too large (time-based approximation)
+                // If we have been collecting chunks for more than 3 seconds, force a transcription
+                // This prevents waiting too long for long sentences.
+                // Since we don't know exact duration, we rely on the client sending chunks roughly every 100-500ms.
+                // If we assume 10 chunks ~ 1-2 seconds (depending on client slice time), we can check buffer count.
+                // But a time-based check since last transcription is better.
+                const now = Date.now();
+                if (now - lastTranscriptionTime > 3000 && !isTranscribing) {
+                     triggerTranscription();
+                }
             } else {
                 // Text message = Control command
                 try {
@@ -33,6 +45,9 @@ export function initializeWebSocket(server: Server) {
                     if (command.type === 'reset') {
                         audioBuffer = [];
                         logger.info('Audio buffer cleared by client');
+                    } else if (command.type === 'flush') {
+                        logger.info('Flush requested by client');
+                        triggerTranscription();
                     }
                 } catch (e) {
                     logger.warn('Received invalid JSON text message');
@@ -74,6 +89,7 @@ export function initializeWebSocket(server: Server) {
                 ws.send(JSON.stringify({ type: 'error', message: 'Transcription failed' }));
             } finally {
                 isTranscribing = false;
+                lastTranscriptionTime = Date.now();
             }
         }
     });
