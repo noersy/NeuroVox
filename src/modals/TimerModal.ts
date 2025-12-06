@@ -353,6 +353,9 @@ export class TimerModal extends Modal {
                             }
                         }
                     );
+                    
+                    // Initialize connection immediately
+                    await this.streamingService.start();
                 }
                 
                 this.recordingStartTime = Date.now();

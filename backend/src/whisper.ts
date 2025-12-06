@@ -25,7 +25,9 @@ export async function initializeWhisper(): Promise<void> {
                 'automatic-speech-recognition',
                 config.modelName,
                 {
-                    cache_dir: config.modelCacheDir
+                    cache_dir: config.modelCacheDir,
+                    dtype: 'q8', // Force 8-bit quantization to save memory
+                    device: 'auto'
                 }
             );
             isV2Model = false;
@@ -191,6 +193,35 @@ export async function transcribe(audioBuffer: Buffer, language?: string): Promis
         const audioData = await decodeAudio(audioBuffer);
         logger.info(`Audio decoded: ${audioData.length} samples`);
 
+        const resultText = await transcribeFloat32(audioData, language);
+
+        const duration = (Date.now() - startTime) / 1000;
+        logger.info(`Transcription completed in ${duration.toFixed(2)}s`);
+
+        return resultText;
+    } catch (error) {
+        logger.error('Transcription failed:', error);
+        throw error;
+    }
+}
+
+export async function transcribeBuffer(audioBuffer: Buffer, language?: string): Promise<string> {
+     try {
+        logger.debug(`Transcribing buffer (${audioBuffer.length} bytes, language: ${language || 'auto'})...`);
+        
+        // Decode audio to Float32Array using in-memory buffer
+        const audioData = await decodeAudioBuffer(audioBuffer);
+        logger.debug(`Buffer decoded: ${audioData.length} samples`);
+
+        return await transcribeFloat32(audioData, language);
+    } catch (error) {
+        logger.error('Buffer transcription failed:', error);
+        throw error;
+    }
+}
+
+export async function transcribeFloat32(audioData: Float32Array, language?: string): Promise<string> {
+    try {
         let resultText: string;
 
         if (isV2Model) {
@@ -213,46 +244,9 @@ export async function transcribe(audioBuffer: Buffer, language?: string): Promis
             const output = Array.isArray(result) ? result[0] : result;
             resultText = output.text;
         }
-
-        const duration = (Date.now() - startTime) / 1000;
-        logger.info(`Transcription completed in ${duration.toFixed(2)}s`);
-
         return resultText;
     } catch (error) {
-        logger.error('Transcription failed:', error);
-        throw error;
-    }
-}
-
-export async function transcribeBuffer(audioBuffer: Buffer, language?: string): Promise<string> {
-     try {
-        logger.debug(`Transcribing buffer (${audioBuffer.length} bytes, language: ${language || 'auto'})...`);
-        
-        // Decode audio to Float32Array using in-memory buffer
-        const audioData = await decodeAudioBuffer(audioBuffer);
-        logger.debug(`Buffer decoded: ${audioData.length} samples`);
-
-        let resultText: string;
-
-        if (isV2Model) {
-            resultText = await transcribeV2(audioData, language);
-        } else {
-            const options: any = {
-                return_timestamps: false
-            };
-
-            if (language && language !== 'auto') {
-                options.language = language;
-            }
-
-            const result = await whisperPipeline(audioData, options);
-            const output = Array.isArray(result) ? result[0] : result;
-            resultText = output.text;
-        }
-
-        return resultText;
-    } catch (error) {
-        logger.error('Buffer transcription failed:', error);
+        logger.error('Float32 transcription failed:', error);
         throw error;
     }
 }

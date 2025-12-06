@@ -15,7 +15,6 @@ type AudioChannels = 1 | 2;
  */
 interface AudioRecorderOptions extends Options {
     type: 'audio';
-    recorderType: typeof RecordRTC.StereoAudioRecorder;
     numberOfAudioChannels: AudioChannels;
     desiredSampRate: number;
     bitsPerSecond: number;
@@ -82,7 +81,6 @@ export class AudioRecordingManager {
         return {
             type: 'audio',
             mimeType: "audio/webm",  // Use WebM container for better compression
-            recorderType: RecordRTC.StereoAudioRecorder,
             numberOfAudioChannels: 1 as AudioChannels,
             desiredSampRate: sampleRates[quality] || sampleRates[AudioQuality.Medium],
             // Add bitrate control for better compression

@@ -64,16 +64,16 @@ export class DeviceDetection {
         
         if (isMobile || availableMemory < 1024 * 1024 * 1024) { // Mobile or < 1GB
             return {
-                chunkDuration: 5,      // 5 second chunks
-                maxQueueSize: 3,       // Max 3 chunks in memory
+                chunkDuration: 1,      // 1 second chunks (was 5)
+                maxQueueSize: 10,      // Max 10 chunks in memory
                 bitrate: 16000,        // 16kbps
                 processingMode: 'streaming',
                 memoryLimit: 100       // 100MB limit
             };
         } else {
             return {
-                chunkDuration: 10,     // 10 second chunks
-                maxQueueSize: 5,       // Max 5 chunks in memory
+                chunkDuration: 1,      // 1 second chunks (was 10)
+                maxQueueSize: 20,      // Max 20 chunks in memory
                 bitrate: 48000,        // 48kbps
                 processingMode: 'streaming',
                 memoryLimit: 300       // 300MB limit

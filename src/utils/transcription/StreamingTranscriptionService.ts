@@ -58,6 +58,10 @@ export class StreamingTranscriptionService {
         return true;
     }
 
+    public async start(): Promise<void> {
+        await this.startProcessing();
+    }
+
     private async startProcessing(): Promise<void> {
         if (this.isProcessing) return;
         
