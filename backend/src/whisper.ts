@@ -11,7 +11,6 @@ import { config } from './config';
 ffmpeg.setFfmpegPath(ffmpegPath.path);
 
 let whisperPipeline: AutomaticSpeechRecognitionPipeline | any | null = null;
-let isV2Model = false;
 
 export async function initializeWhisper(): Promise<void> {
     try {
@@ -27,21 +26,9 @@ export async function initializeWhisper(): Promise<void> {
                     cache_dir: config.modelCacheDir
                 }
             );
-            isV2Model = false;
         } catch (v3Error) {
-            logger.warn('Failed to load model with v3, trying v2 compatibility fallback...');
+            logger.warn('Failed to load model with v3...');
             logger.warn(v3Error);
-
-            // Fallback for v2-compatible models
-            // whisperPipelinev2 = await pipelinev2(
-            //     'automatic-speech-recognition',
-            //     config.modelName,
-            //     {
-            //         cache_dir: config.modelCacheDir
-            //     }
-            // );
-
-            isV2Model = true;
         }
 
         logger.info('Whisper model loaded successfully');
@@ -110,24 +97,6 @@ async function decodeAudio(audioBuffer: Buffer): Promise<Float32Array> {
     }
 }
 
-async function transcribeV2(audioData: Float32Array, language?: string): Promise<string> {
-    // Prepare transcription options
-    const options: any = {
-        return_timestamps: false
-    };
-
-    // Add language if specified and not 'auto'
-    // if (language && language !== 'auto') {
-    //     options.language = language;
-    // }
-
-    // const result = await whisperPipelinev2(audioData, options);
-
-    // Handle both single result and array results
-    // const output = Array.isArray(result) ? result[0] : result;
-    return "";
-}
-
 export async function transcribe(audioBuffer: Buffer, language?: string): Promise<string> {
     // if (!whisperPipeline || !whisperPipelinev2) {
     //     throw new Error('Whisper model not initialized');
@@ -141,28 +110,23 @@ export async function transcribe(audioBuffer: Buffer, language?: string): Promis
         const audioData = await decodeAudio(audioBuffer);
         logger.info(`Audio decoded: ${audioData.length} samples`);
 
-        let resultText: string;
 
-        if (isV2Model) {
-            resultText = await transcribeV2(audioData, language);
-        } else {
-            // Prepare transcription options
-            const options: any = {
-                return_timestamps: false
-            };
+        // Prepare transcription options
+        const options: any = {
+            return_timestamps: false
+        };
 
-            // Add language if specified and not 'auto'
-            if (language && language !== 'auto') {
-                options.language = language;
-            }
-
-            // Transcribe the decoded audio with language option
-            const result = await whisperPipeline(audioData, options);
-
-            // Handle both single result and array results
-            const output = Array.isArray(result) ? result[0] : result;
-            resultText = output.text;
+        // Add language if specified and not 'auto'
+        if (language && language !== 'auto') {
+            options.language = language;
         }
+
+        // Transcribe the decoded audio with language option
+        const result = await whisperPipeline(audioData, options);
+
+        // Handle both single result and array results
+        const output = Array.isArray(result) ? result[0] : result;
+        const resultText = output.text;
 
         const duration = (Date.now() - startTime) / 1000;
         logger.info(`Transcription completed in ${duration.toFixed(2)}s`);
