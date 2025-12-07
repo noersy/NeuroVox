@@ -172,7 +172,9 @@ export default class NeuroVoxPlugin extends Plugin {
     public async saveSettings(): Promise<void> {
         try {
             await this.saveData(this.settings);
-            this.initializeUI();
+            // Don't call initializeUI() here - it removes and recreates toolbar button unnecessarily
+            // Only update toolbar button if setting changed
+            this.updateToolbarButton();
             
             // Trigger the floating button setting changed event to ensure UI is in sync
             this.events.trigger('floating-button-setting-changed', this.settings.showFloatingButton);
@@ -403,9 +405,24 @@ export default class NeuroVoxPlugin extends Plugin {
 
     public initializeUI(): void {
         this.cleanupUI();
-    
+        this.updateToolbarButton();
+    }
+
+    /**
+     * Updates toolbar button based on settings without removing it unnecessarily
+     */
+    private updateToolbarButton(): void {
         if (this.settings.showToolbarButton) {
-            this.toolbarButton = new ToolbarButton(this, this.settings);
+            // Only create if it doesn't exist
+            if (!this.toolbarButton) {
+                this.toolbarButton = new ToolbarButton(this, this.settings);
+            }
+        } else {
+            // Only remove if it exists
+            if (this.toolbarButton) {
+                this.toolbarButton.remove();
+                this.toolbarButton = null;
+            }
         }
     }
     
@@ -431,6 +448,8 @@ export default class NeuroVoxPlugin extends Plugin {
         this.buttonMap.forEach(button => button.remove());
         this.buttonMap.clear();
         
+        // Only remove toolbar button if we're doing a full cleanup (e.g., on unload)
+        // For normal operations, let updateToolbarButton() handle it
         if (this.toolbarButton) {
             this.toolbarButton.remove();
             this.toolbarButton = null;

@@ -126,18 +126,7 @@ export class RecordingAccordion extends BaseAccordion {
                     .setValue(this.settings.showToolbarButton)
                     .onChange(async (value: boolean) => {
                         this.settings.showToolbarButton = value;
-                        if (value) {
-                            // Initialize toolbar button if it doesn't exist
-                            if (!this.plugin.toolbarButton) {
-                                this.plugin.initializeUI();
-                            }
-                        } else {
-                            // Remove toolbar button if it exists
-                            if (this.plugin.toolbarButton) {
-                                this.plugin.toolbarButton.remove();
-                                this.plugin.toolbarButton = null;
-                            }
-                        }
+                        // saveSettings will call updateToolbarButton() automatically
                         await this.plugin.saveSettings();
                     });
             });
