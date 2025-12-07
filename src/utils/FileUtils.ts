@@ -52,10 +52,10 @@ export async function saveAudioFile(
 
     // Convert blob to array buffer
     const arrayBuffer = await audioBlob.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
+    // const uint8Array = new Uint8Array(arrayBuffer);
 
     // Create the file
-    const file = await app.vault.createBinary(filePath, uint8Array);
+    const file = await app.vault.createBinary(filePath, arrayBuffer);
     if (!file) {
         throw new Error(`Failed to create audio file: ${filePath}`);
     }

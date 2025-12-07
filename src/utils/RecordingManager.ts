@@ -74,11 +74,11 @@ export class AudioRecordingManager {
     private getAudioConfig(): AudioRecorderOptions {
         const quality = this.plugin.settings.audioQuality;
         const isMobile = this.deviceDetection.isMobile();
-        
+
         // Use mobile-optimized settings if on mobile device
         const sampleRates = isMobile ? this.MOBILE_SAMPLE_RATES : this.SAMPLE_RATES;
         const bitRates = isMobile ? this.MOBILE_BIT_RATES : this.BIT_RATES;
-        
+
         return {
             type: 'audio',
             mimeType: "audio/webm",  // Use WebM container for better compression
@@ -95,7 +95,7 @@ export class AudioRecordingManager {
      */
     async initialize(): Promise<void> {
         try {
-            this.stream = await navigator.mediaDevices.getUserMedia({ 
+            this.stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: true,
                     noiseSuppression: true,
@@ -167,6 +167,7 @@ export class AudioRecordingManager {
             try {
                 this.recorder.destroy();
             } catch (error) {
+                console.log('Error destroying recorder:', error);
             }
             this.recorder = null;
         }
@@ -175,6 +176,7 @@ export class AudioRecordingManager {
             try {
                 this.stream.getTracks().forEach(track => track.stop());
             } catch (error) {
+                console.log('Error stopping media stream tracks:', error);
             }
             this.stream = null;
         }

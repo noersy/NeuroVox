@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Platform } from 'obsidian';
+import { Modal, Notice, Platform } from 'obsidian';
 import { AudioRecordingManager } from '../utils/RecordingManager';
 import { RecordingUI, RecordingState } from '../ui/RecordingUI';
 import NeuroVoxPlugin from '../main';
@@ -21,14 +21,13 @@ export class TimerModal extends Modal {
     private recordingManager: AudioRecordingManager;
     private ui: RecordingUI;
     private intervalId: number | null = null;
-    private seconds: number = 0;
-    private isClosing: boolean = false;
+    private seconds = 0;
+    private isClosing = false;
     private currentState: RecordingState = 'inactive';
     private streamingService: StreamingTranscriptionService | null = null;
     private deviceDetection: DeviceDetection;
-    private useStreaming: boolean = false;
-    private chunkIndex: number = 0;
-    private recordingStartTime: number = 0;
+    private useStreaming = false;
+    private chunkIndex = 0;
 
     private readonly CONFIG: TimerConfig;
 
@@ -216,7 +215,6 @@ export class TimerModal extends Modal {
                     );
                 }
                 
-                this.recordingStartTime = Date.now();
                 this.chunkIndex = 0;
                 
                 // Configure recorder with chunk processing
@@ -327,7 +325,6 @@ export class TimerModal extends Modal {
                 await this.onStop(result);
             }
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             this.handleError('Failed to stop recording', error);
         }
     }
@@ -397,14 +394,12 @@ export class TimerModal extends Modal {
                 this.streamingService.abort();
                 this.streamingService = null;
             }
-        } catch (error) {
         } finally {
             // Reset states
             this.currentState = 'inactive';
             this.seconds = 0;
             this.isClosing = false;
             this.chunkIndex = 0;
-            this.recordingStartTime = 0;
         }
     }
 

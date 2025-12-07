@@ -7,10 +7,10 @@ export abstract class BaseAccordion {
     protected accordionEl: HTMLElement;
     protected headerEl: HTMLElement;
     protected contentEl: HTMLElement;
-    protected isOpen: boolean = false;
+    protected isOpen = false;
     protected toggleIcon: HTMLSpanElement;
 
-    constructor(containerEl: HTMLElement, title: string, description: string = '') {
+    constructor(containerEl: HTMLElement, title: string, description = '') {
         this.containerEl = containerEl;
         this.accordionEl = this.containerEl.createDiv({ cls: "neurovox-accordion" });
 

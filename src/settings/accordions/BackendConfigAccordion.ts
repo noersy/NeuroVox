@@ -35,7 +35,7 @@ export class BackendConfigAccordion extends BaseAccordion {
         headerDiv.createEl("h4", { text: "Server Connection", cls: "setting-item-heading" });
 
         // Backend URL Setting
-        const urlSetting = new Setting(this.contentEl)
+        new Setting(this.contentEl)
             .setName("Backend URL")
             .setDesc("URL of the local Whisper backend server")
             .addText(text => {

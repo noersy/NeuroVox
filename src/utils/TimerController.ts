@@ -6,8 +6,8 @@ export interface TimerConfig {
 
 export class TimerController {
     private intervalId: number | null = null;
-    private seconds: number = 0;
-    private isRunning: boolean = false;
+    private seconds = 0;
+    private isRunning = false;
 
     constructor(
         private config: TimerConfig,

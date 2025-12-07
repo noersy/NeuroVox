@@ -122,8 +122,7 @@ export class VideoProcessor {
             await this.ffmpeg.deleteFile('input.' + file.extension);
             await this.ffmpeg.deleteFile('output.mp3');
             
-            return (data as Uint8Array).buffer;
-            
+            return ArrayBuffer.isView(data) ? (data.buffer as ArrayBuffer) : new Uint8Array(data).buffer;
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error occurred';
             throw new Error('Failed to extract audio: ' + message);

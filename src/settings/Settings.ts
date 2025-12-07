@@ -61,9 +61,9 @@ export const DEFAULT_SETTINGS: NeuroVoxSettings = {
     autoStopDuration: 5,
 
     // Mobile Optimization
-    enableMobileOptimization: true,
-    streamingMode: true, // Auto-detected based on device
-    adaptiveQuality: true,
+    enableMobileOptimization: false,
+    streamingMode: false, // Auto-detected based on device
+    adaptiveQuality: false,
     maxMemoryUsage: 200, // MB
     includeTimestamps: false,
 };

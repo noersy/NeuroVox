@@ -18,7 +18,7 @@ export class MemoryMonitor {
     private static instance: MemoryMonitor;
     private deviceDetection: DeviceDetection;
     private baseSettings: StreamingOptions;
-    private lastCheck: number = 0;
+    private lastCheck = 0;
     private memoryHistory: number[] = [];
     private readonly HISTORY_SIZE = 10;
     private readonly CHECK_INTERVAL = 5000; // 5 seconds
@@ -103,7 +103,6 @@ export class MemoryMonitor {
     }
 
     getAdaptiveSettings(): AdaptiveSettings {
-        const usage = this.getMemoryUsagePercent();
         const isMobile = this.deviceDetection.isMobile();
         const isHighPressure = this.isMemoryPressureHigh();
         const isCritical = this.isMemoryPressureCritical();

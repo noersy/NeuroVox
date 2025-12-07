@@ -10,7 +10,7 @@ export class StreamingTranscriptionService {
     private resultCompiler: ResultCompiler;
     private transcriptionService: TranscriptionService;
     private deviceDetection: DeviceDetection;
-    private isProcessing: boolean = false;
+    private isProcessing = false;
     private processedChunks: Set<string> = new Set();
     private callbacks: StreamingCallbacks;
     private abortController: AbortController | null = null;
@@ -81,36 +81,31 @@ export class StreamingTranscriptionService {
     }
 
     private async processChunk(chunk: Blob, metadata: ChunkMetadata): Promise<void> {
-        try {
-            // Convert blob to ArrayBuffer
-            const arrayBuffer = await chunk.arrayBuffer();
+        // Convert blob to ArrayBuffer
+        const arrayBuffer = await chunk.arrayBuffer();
 
-            // Transcribe the chunk
-            const transcript = await this.transcriptionService.transcribeContent(arrayBuffer);
+        // Transcribe the chunk
+        const transcript = await this.transcriptionService.transcribeContent(arrayBuffer);
 
-            // Create transcription chunk
-            const transcriptionChunk: TranscriptionChunk = {
-                metadata,
-                transcript: transcript,
-                processed: true
-            };
+        // Create transcription chunk
+        const transcriptionChunk: TranscriptionChunk = {
+            metadata,
+            transcript: transcript,
+            processed: true
+        };
 
-            // Add to result compiler
-            this.resultCompiler.addSegment(transcriptionChunk);
-            this.processedChunks.add(metadata.id);
+        // Add to result compiler
+        this.resultCompiler.addSegment(transcriptionChunk);
+        this.processedChunks.add(metadata.id);
 
-            // Notify progress
-            if (this.callbacks.onProgress) {
-                const totalChunks = this.processedChunks.size + this.chunkQueue.size();
-                this.callbacks.onProgress(this.processedChunks.size, totalChunks);
-            }
-
-            // Clean up the blob to free memory
-            this.cleanupBlob(chunk);
-
-        } catch (error) {
-            throw error;
+        // Notify progress
+        if (this.callbacks.onProgress) {
+            const totalChunks = this.processedChunks.size + this.chunkQueue.size();
+            this.callbacks.onProgress(this.processedChunks.size, totalChunks);
         }
+
+        // Clean up the blob to free memory
+        this.cleanupBlob(chunk);
     }
 
     async finishProcessing(): Promise<string> {

@@ -1,4 +1,4 @@
-import { TranscriptionChunk, ChunkMetadata } from '../../types';
+import { TranscriptionChunk } from '../../types';
 
 interface CompiledSegment {
     startTime: number;
@@ -9,7 +9,7 @@ interface CompiledSegment {
 
 export class ResultCompiler {
     private segments: CompiledSegment[] = [];
-    private totalDuration: number = 0;
+    private totalDuration = 0;
     private startTimestamp: number;
 
     constructor(startTimestamp?: number) {
@@ -36,7 +36,7 @@ export class ResultCompiler {
         this.totalDuration = Math.max(this.totalDuration, segment.endTime);
     }
 
-    getPartialResult(includeTimestamps: boolean = false): string {
+    getPartialResult(includeTimestamps = false): string {
         if (this.segments.length === 0) return '';
 
         if (includeTimestamps) {
@@ -63,7 +63,7 @@ export class ResultCompiler {
         }
     }
 
-    getFinalResult(includeTimestamps: boolean = false, includeMetadata: boolean = false): string {
+    getFinalResult(includeTimestamps = false, includeMetadata = false): string {
         if (this.segments.length === 0) return '';
 
         let result = '';

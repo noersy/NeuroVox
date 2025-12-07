@@ -6,9 +6,6 @@ import {
     TAbstractFile,
     WorkspaceLeaf,
     normalizePath,
-    FuzzySuggestModal,
-    App,
-    FuzzyMatch,
     Events
 } from 'obsidian';
 import { VideoProcessor } from './utils/VideoProcessor';
@@ -19,81 +16,7 @@ import { ToolbarButton } from './ui/ToolbarButton';
 import { TimerModal } from './modals/TimerModal';
 import { LocalWhisperAdapter } from './adapters/LocalWhisperAdapter';
 import { AIProvider, AIAdapter } from './adapters/AIAdapter';
-import { PluginData } from './types';
 import { RecordingProcessor } from './utils/RecordingProcessor';
-
-/**
- * Modal for selecting audio files with fuzzy search
- */
-class AudioFileSuggestModal extends FuzzySuggestModal<TFile> {
-    private files: TFile[] = [];
-    private resolvePromise: ((file: TFile | null) => void) | null = null;
-
-    constructor(app: App) {
-        super(app);
-        this.setPlaceholder('🔍 Search audio files...');
-    }
-
-    setFiles(files: TFile[]): void {
-        this.files = files;
-    }
-
-    getItems(): TFile[] {
-        return this.files.sort((a, b) => b.stat.mtime - a.stat.mtime);
-    }
-
-    getItemText(file: TFile): string {
-        return file.path;
-    }
-
-    onChooseItem(file: TFile, evt: MouseEvent | KeyboardEvent): void {
-        if (!file) {
-            return;
-        }
-
-        const resolve = this.resolvePromise;
-        const selectedFile = file;
-        
-        this.resolvePromise = null;
-        this.close();
-        
-        if (resolve) {
-            setTimeout(() => resolve(selectedFile), 50);
-        }
-    }
-
-    renderSuggestion(match: FuzzyMatch<TFile>, el: HTMLElement): void {
-        const file = match.item;
-        
-        const container = el.createDiv({ cls: 'neurovox-suggestion' });
-        
-        container.createEl('div', {
-            text: `📄 ${file.path}`,
-            cls: 'neurovox-suggestion-path'
-        });
-        
-        container.createEl('div', {
-            text: `Modified: ${new Date(file.stat.mtime).toLocaleString()} • Size: ${(file.stat.size / (1024 * 1024)).toFixed(2)}MB`,
-            cls: 'neurovox-suggestion-info'
-        });
-    }
-
-    async awaitSelection(): Promise<TFile | null> {
-        return new Promise<TFile | null>((resolve) => {
-            this.resolvePromise = resolve;
-            this.open();
-        });
-    }
-
-    onClose(): void {
-        if (this.resolvePromise) {
-            const resolve = this.resolvePromise;
-            this.resolvePromise = null;
-            setTimeout(() => resolve(null), 50);
-        }
-        super.onClose();
-    }
-}
 
 export default class NeuroVoxPlugin extends Plugin {
     settings: NeuroVoxSettings;
@@ -236,7 +159,6 @@ export default class NeuroVoxPlugin extends Plugin {
                         (this.settings as any)[key] = (data as any)[key];
                     }
                 });
-            } else {
             }
         } catch (error) {
             this.settings = { ...DEFAULT_SETTINGS };
